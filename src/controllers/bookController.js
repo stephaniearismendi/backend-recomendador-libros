@@ -81,8 +81,7 @@ exports.getBookDetails = async (req, res) => {
             rating,
         });
     } catch (err) {
-        console.error(`Error en detalles de ${key}:`, err.message);
-        res.status(500).json({ error: 'No se pudo obtener la información del libro' });
+        res.status(500).json({ error: ERRORS.OPENLIBRARY });
     }
 };
 
