@@ -32,13 +32,6 @@ const translateToSpanish = async (text) => {
     }
 };
 
-const extractDescription = (work) => {
-    if (typeof work.description === 'string') return work.description;
-    if (work.description?.value) return work.description.value;
-    if (work.first_sentence?.value) return work.first_sentence.value;
-    return '';
-};
-
 const getBasicBookInfo = async (w) => {
     let rating = null;
     try {
@@ -49,8 +42,10 @@ const getBasicBookInfo = async (w) => {
         id: w.key,
         title: w.title,
         author: w.authors?.[0]?.name || 'Desconocido',
+        description: '',
         image: w.cover_id ? `https://covers.openlibrary.org/b/id/${w.cover_id}-L.jpg` : null,
         rating,
+        publishedDate: null,
     };
 };
 
@@ -63,27 +58,82 @@ const mapOpenLibraryBooks = async (works = []) => {
     return mapped;
 };
 
+const extractDescription = (work) => {
+    if (typeof work.description === 'string') return work.description;
+    if (work.description?.value) return work.description.value;
+    if (work.first_sentence?.value) return work.first_sentence.value;
+    return '';
+};
+
+const stripHtml = (html) => {
+    return html
+        .replace(/<br\s*\/?>/gi, '\n')
+        .replace(/<[^>]+>/g, '')
+        .replace(/&nbsp;/g, ' ')
+        .replace(/&amp;/g, '&')
+        .replace(/&quot;/g, '"')
+        .replace(/&#39;/g, "'")
+        .replace(/&lt;/g, '<')
+        .replace(/&gt;/g, '>')
+        .trim();
+};
+
 exports.getBookDetails = async (req, res) => {
     const { key } = req.params;
+
+    const isOpenLibraryId = key?.startsWith('/works/') || key?.startsWith('OL');
+
     try {
-        const workRes = await axios.get(`https://openlibrary.org/works/${key}.json`);
-        const work = workRes.data;
-        const rawDescription = extractDescription(work);
-        const translated = rawDescription ? await translateToSpanish(rawDescription) : '';
-        let rating = null;
-        try {
-            const ratingRes = await axios.get(`https://openlibrary.org/works/${key}/ratings.json`);
-            rating = ratingRes.data.summary?.average?.toFixed(1) || null;
-        } catch {}
-        res.json({
-            title: work.title,
-            description: translated,
-            rating,
+        if (isOpenLibraryId) {
+            const cleanKey = key.replace(/^\/?works\//, '');
+
+            const workRes = await axios.get(`https://openlibrary.org/works/${cleanKey}.json`);
+            const work = workRes.data;
+
+            const rawDescription = extractDescription(work);
+            const translatedRaw = rawDescription
+                ? await translateToSpanish(rawDescription)
+                : '';
+            const description = stripHtml(translatedRaw);
+
+            let rating = null;
+            try {
+                const ratingRes = await axios.get(`https://openlibrary.org/works/${cleanKey}/ratings.json`);
+                rating = ratingRes.data.summary?.average?.toFixed(1) || null;
+            } catch {
+            }
+
+            return res.json({
+                title: work.title,
+                description,
+                rating,
+            });
+        }
+
+        // fallback
+        const googleRes = await axios.get(`https://www.googleapis.com/books/v1/volumes/${key}`, {
+            params: { key: process.env.GOOGLE_BOOKS_API_KEY },
         });
+
+        const info = googleRes.data.volumeInfo;
+        const translatedRaw = info.description
+            ? await translateToSpanish(info.description)
+            : '';
+        const description = stripHtml(translatedRaw);
+
+        return res.json({
+            title: info.title,
+            description,
+            rating: null,
+        });
+
     } catch (err) {
+        console.error('[getBookDetails]', err.message);
         res.status(500).json({ error: ERRORS.OPENLIBRARY });
     }
 };
+
+
 
 exports.getAllBooks = async (_req, res) => {
     try {
@@ -153,6 +203,60 @@ exports.getBooksByGenre = async (req, res) => {
         );
         const mapped = await mapOpenLibraryBooks(data.works);
         res.json(mapped);
+    } catch (err) {
+        console.error(ERRORS.OPENLIBRARY, err.message);
+        res.status(500).json({ error: ERRORS.OPENLIBRARY });
+    }
+};
+
+exports.getAdaptedBooks = async (_req, res) => {
+    try {
+        const { data } = await axios.get('https://openlibrary.org/subjects/motion_pictures.json', {
+            params: { limit: 12 }
+        });
+        const mapped = await mapOpenLibraryBooks(data.works);
+        res.json(mapped);
+    } catch (err) {
+        console.error(ERRORS.OPENLIBRARY, err.message);
+        res.status(500).json({ error: ERRORS.OPENLIBRARY });
+    }
+};
+
+exports.getNYTBooks = async (_req, res) => {
+    try {
+        const nyData = await axios.get('https://api.nytimes.com/svc/books/v3/lists/current/hardcover-fiction.json', {
+            params: { 'api-key': process.env.NYT_KEY }
+        });
+
+        const books = await Promise.all(
+            nyData.data.results.books.slice(0, 12).map(async (b) => {
+                const isbn = b.primary_isbn13;
+
+                const gbRes = await axios.get('https://www.googleapis.com/books/v1/volumes', {
+                    params: {
+                        q: `isbn:${isbn}`,
+                        key: process.env.GOOGLE_BOOKS_API_KEY,
+                    },
+                });
+
+                const item = gbRes.data.items?.[0];
+                const info = item?.volumeInfo;
+
+                if (!info) return null;
+
+                return {
+                    id: item.id || isbn,
+                    title: info.title || b.title,
+                    author: info.authors?.[0] || b.author || 'Desconocido',
+                    description: info.description || b.description || '',
+                    image: info.imageLinks?.thumbnail || null,
+                    rating: `#${b.rank} NYT (${b.weeks_on_list} semanas)`,
+                    publishedDate: info.publishedDate || b.published_date || null,
+                };
+            })
+        );
+
+        res.json(books.filter(Boolean));
     } catch (err) {
         console.error(ERRORS.OPENLIBRARY, err.message);
         res.status(500).json({ error: ERRORS.OPENLIBRARY });
