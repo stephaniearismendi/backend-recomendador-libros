@@ -1,6 +1,7 @@
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
-const axios = require('axios');
+const prisma = require('../database/prisma');
+const { AX } = require('../core/http');
+const { stripHtml, toFrontendBook } = require('../utils/utils');
+const { translateEsFast } = require('../core/providers');
 
 const ERRORS = {
     DB_BOOKS: 'Error al obtener libros',
@@ -10,32 +11,12 @@ const ERRORS = {
     FAVORITES_GET: 'No se pudieron obtener los favoritos',
     FAVORITES_ADD: 'No se pudo agregar el favorito',
     FAVORITES_REMOVE: 'No se pudo eliminar el favorito',
-    TRANSLATION: 'Error al traducir contenido',
-};
-
-const translateToSpanish = async (text) => {
-    try {
-        const res = await axios.post(
-            'https://api-free.deepl.com/v2/translate',
-            new URLSearchParams({
-                auth_key: process.env.DEEPL_API_KEY,
-                text,
-                target_lang: 'ES',
-                source_lang: 'EN',
-            }).toString(),
-            { headers: { 'Content-Type': 'application/x-www-form-urlencoded' } }
-        );
-        return res.data.translations[0].text;
-    } catch (err) {
-        console.error(ERRORS.TRANSLATION, err.message);
-        return text;
-    }
 };
 
 const getBasicBookInfo = async (w) => {
     let rating = null;
     try {
-        const ratingRes = await axios.get(`https://openlibrary.org${w.key}/ratings.json`);
+        const ratingRes = await AX.get(`https://openlibrary.org${w.key}/ratings.json`);
         rating = ratingRes.data.summary?.average?.toFixed(1) || null;
     } catch {}
     return {
@@ -65,43 +46,25 @@ const extractDescription = (work) => {
     return '';
 };
 
-const stripHtml = (html) => {
-    return html
-        .replace(/<br\s*\/?>/gi, '\n')
-        .replace(/<[^>]+>/g, '')
-        .replace(/&nbsp;/g, ' ')
-        .replace(/&amp;/g, '&')
-        .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
-        .replace(/&lt;/g, '<')
-        .replace(/&gt;/g, '>')
-        .trim();
-};
-
 exports.getBookDetails = async (req, res) => {
     const { key } = req.params;
-
     const isOpenLibraryId = key?.startsWith('/works/') || key?.startsWith('OL');
 
     try {
         if (isOpenLibraryId) {
             const cleanKey = key.replace(/^\/?works\//, '');
-
-            const workRes = await axios.get(`https://openlibrary.org/works/${cleanKey}.json`);
+            const workRes = await AX.get(`https://openlibrary.org/works/${cleanKey}.json`);
             const work = workRes.data;
 
             const rawDescription = extractDescription(work);
-            const translatedRaw = rawDescription
-                ? await translateToSpanish(rawDescription)
-                : '';
+            const translatedRaw = rawDescription ? await translateEsFast(rawDescription) : '';
             const description = stripHtml(translatedRaw);
 
             let rating = null;
             try {
-                const ratingRes = await axios.get(`https://openlibrary.org/works/${cleanKey}/ratings.json`);
+                const ratingRes = await AX.get(`https://openlibrary.org/works/${cleanKey}/ratings.json`);
                 rating = ratingRes.data.summary?.average?.toFixed(1) || null;
-            } catch {
-            }
+            } catch {}
 
             return res.json({
                 title: work.title,
@@ -110,15 +73,12 @@ exports.getBookDetails = async (req, res) => {
             });
         }
 
-        // fallback
-        const googleRes = await axios.get(`https://www.googleapis.com/books/v1/volumes/${key}`, {
+        // fallback: Google Books por ID
+        const googleRes = await AX.get(`https://www.googleapis.com/books/v1/volumes/${key}`, {
             params: { key: process.env.GOOGLE_BOOKS_API_KEY },
         });
-
-        const info = googleRes.data.volumeInfo;
-        const translatedRaw = info.description
-            ? await translateToSpanish(info.description)
-            : '';
+        const info = googleRes.data.volumeInfo || {};
+        const translatedRaw = info.description ? await translateEsFast(info.description) : '';
         const description = stripHtml(translatedRaw);
 
         return res.json({
@@ -133,12 +93,10 @@ exports.getBookDetails = async (req, res) => {
     }
 };
 
-
-
 exports.getAllBooks = async (_req, res) => {
     try {
         const books = await prisma.book.findMany();
-        res.json(books);
+        res.json(books.map(toFrontendBook));
     } catch (err) {
         console.error(ERRORS.DB_BOOKS, err);
         res.status(500).json({ error: ERRORS.DB_BOOKS });
@@ -149,11 +107,11 @@ exports.searchBooks = async (req, res) => {
     const query = req.query.q;
     if (!query) return res.status(400).json({ error: ERRORS.MISSING_QUERY });
     try {
-        const { data } = await axios.get('https://openlibrary.org/search.json', {
+        const { data } = await AX.get('https://openlibrary.org/search.json', {
             params: { q: query, language: 'spa', limit: 10 },
         });
         const results = await mapOpenLibraryBooks(data.docs);
-        res.json(results);
+        res.json(results.map(toFrontendBook));
     } catch (err) {
         console.error(ERRORS.OPENLIBRARY, err.message);
         res.status(500).json({ error: ERRORS.OPENLIBRARY });
@@ -162,11 +120,11 @@ exports.searchBooks = async (req, res) => {
 
 exports.getBestSellersBooks = async (_req, res) => {
     try {
-        const { data } = await axios.get('https://openlibrary.org/subjects/bestsellers.json', {
+        const { data } = await AX.get('https://openlibrary.org/subjects/bestsellers.json', {
             params: { limit: 10 },
         });
         const mapped = await mapOpenLibraryBooks(data.works);
-        res.json(mapped);
+        res.json(mapped.map(toFrontendBook));
     } catch (err) {
         console.error(ERRORS.OPENLIBRARY, err.message);
         res.status(500).json({ error: ERRORS.OPENLIBRARY });
@@ -178,7 +136,7 @@ exports.getPopularBooks = async (_req, res) => {
     try {
         const results = await Promise.all(
             subjects.map(s =>
-                axios.get(`https://openlibrary.org/subjects/${s}`, { params: { limit: 15 } })
+                AX.get(`https://openlibrary.org/subjects/${s}`, { params: { limit: 15 } })
             )
         );
         let works = results.flatMap(r => r.data.works);
@@ -186,7 +144,7 @@ exports.getPopularBooks = async (_req, res) => {
         works.sort((a, b) => (b.edition_count || 0) - (a.edition_count || 0));
         const top = works.slice(0, 12);
         const mapped = await mapOpenLibraryBooks(top);
-        res.json(mapped);
+        res.json(mapped.map(toFrontendBook));
     } catch (err) {
         console.error(ERRORS.OPENLIBRARY, err);
         res.status(500).json({ error: ERRORS.OPENLIBRARY });
@@ -197,12 +155,12 @@ exports.getBooksByGenre = async (req, res) => {
     const genre = req.query.g;
     if (!genre) return res.status(400).json({ error: ERRORS.MISSING_GENRE });
     try {
-        const { data } = await axios.get(
+        const { data } = await AX.get(
             `https://openlibrary.org/subjects/${encodeURIComponent(genre)}.json`,
             { params: { limit: 10 } }
         );
         const mapped = await mapOpenLibraryBooks(data.works);
-        res.json(mapped);
+        res.json(mapped.map(toFrontendBook));
     } catch (err) {
         console.error(ERRORS.OPENLIBRARY, err.message);
         res.status(500).json({ error: ERRORS.OPENLIBRARY });
@@ -211,11 +169,11 @@ exports.getBooksByGenre = async (req, res) => {
 
 exports.getAdaptedBooks = async (_req, res) => {
     try {
-        const { data } = await axios.get('https://openlibrary.org/subjects/motion_pictures.json', {
+        const { data } = await AX.get('https://openlibrary.org/subjects/motion_pictures.json', {
             params: { limit: 12 }
         });
         const mapped = await mapOpenLibraryBooks(data.works);
-        res.json(mapped);
+        res.json(mapped.map(toFrontendBook));
     } catch (err) {
         console.error(ERRORS.OPENLIBRARY, err.message);
         res.status(500).json({ error: ERRORS.OPENLIBRARY });
@@ -224,7 +182,7 @@ exports.getAdaptedBooks = async (_req, res) => {
 
 exports.getNYTBooks = async (_req, res) => {
     try {
-        const nyData = await axios.get('https://api.nytimes.com/svc/books/v3/lists/current/hardcover-fiction.json', {
+        const nyData = await AX.get('https://api.nytimes.com/svc/books/v3/lists/current/hardcover-fiction.json', {
             params: { 'api-key': process.env.NYT_KEY }
         });
 
@@ -232,16 +190,12 @@ exports.getNYTBooks = async (_req, res) => {
             nyData.data.results.books.slice(0, 12).map(async (b) => {
                 const isbn = b.primary_isbn13;
 
-                const gbRes = await axios.get('https://www.googleapis.com/books/v1/volumes', {
-                    params: {
-                        q: `isbn:${isbn}`,
-                        key: process.env.GOOGLE_BOOKS_API_KEY,
-                    },
+                const gbRes = await AX.get('https://www.googleapis.com/books/v1/volumes', {
+                    params: { q: `isbn:${isbn}`, key: process.env.GOOGLE_BOOKS_API_KEY },
                 });
 
                 const item = gbRes.data.items?.[0];
                 const info = item?.volumeInfo;
-
                 if (!info) return null;
 
                 return {
@@ -256,7 +210,7 @@ exports.getNYTBooks = async (_req, res) => {
             })
         );
 
-        res.json(books.filter(Boolean));
+        res.json(books.filter(Boolean).map(toFrontendBook));
     } catch (err) {
         console.error(ERRORS.OPENLIBRARY, err.message);
         res.status(500).json({ error: ERRORS.OPENLIBRARY });
@@ -270,7 +224,7 @@ exports.getFavorites = async (req, res) => {
             where: { userId },
             include: { book: true },
         });
-        res.json(favorites.map(f => f.book));
+        res.json(favorites.map(f => f.book).map(toFrontendBook));
     } catch (err) {
         console.error(ERRORS.FAVORITES_GET, err);
         res.status(500).json({ error: ERRORS.FAVORITES_GET });

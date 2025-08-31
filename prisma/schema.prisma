@@ -8,26 +8,29 @@ datasource db {
 }
 
 model User {
-  id        Int      @id @default(autoincrement())
-  username  String   @unique
-  email     String   @unique
+  id        Int              @id @default(autoincrement())
+  username  String           @unique
+  email     String           @unique
   password  String
   reviews   Review[]
   favorites Favorite[]
   sessions  ReadingSession[]
+
+  following Follow[] @relation("UserFollows")
+  followers Follow[] @relation("UserFollowedBy")
 }
 
 model Book {
-  id          String   @id
-  title     String
-  author    String
-  imageUrl  String?
+  id          String           @id
+  title       String
+  author      String
+  imageUrl    String?
   description String?
-  rating    String?
-  category  String?
-  reviews   Review[]
-  favorites Favorite[]
-  sessions  ReadingSession[]
+  rating      String?
+  category    String?
+  reviews     Review[]
+  favorites   Favorite[]
+  sessions    ReadingSession[]
 }
 
 model Favorite {
@@ -39,7 +42,6 @@ model Favorite {
   @@id([userId, bookId])
 }
 
-
 model Review {
   id      Int    @id @default(autoincrement())
   content String
@@ -47,15 +49,79 @@ model Review {
   user    User   @relation(fields: [userId], references: [id])
   userId  Int
   book    Book   @relation(fields: [bookId], references: [id])
-  bookId String
+  bookId  String
 }
 
 model ReadingSession {
-  id        Int    @id @default(autoincrement())
-  progress  Int
-  duration  Int
-  user      User   @relation(fields: [userId], references: [id])
+  id       Int    @id @default(autoincrement())
+  progress Int
+  duration Int
+  user     User   @relation(fields: [userId], references: [id])
+  userId   Int
+  book     Book   @relation(fields: [bookId], references: [id])
+  bookId   String
+}
+
+// SOCIAL
+
+model Post {
+  id         String    @id @default(cuid())
+  userId     Int
+  userName   String
+  userAvatar String
+  text       String?
+  bookTitle  String?
+  bookAuthor String?
+  bookCover  String?
+  createdAt  DateTime  @default(now())
+  likes      Like[]
+  comments   Comment[]
+}
+
+model Comment {
+  id         String   @id @default(cuid())
+  postId     String
+  userId     Int
+  userName   String
+  userAvatar String
+  text       String
+  createdAt  DateTime @default(now())
+  post       Post     @relation(fields: [postId], references: [id])
+}
+
+model Like {
   userId    Int
-  book      Book   @relation(fields: [bookId], references: [id])
-  bookId String
+  postId    String
+  createdAt DateTime @default(now())
+  post      Post     @relation(fields: [postId], references: [id])
+
+  @@id([userId, postId])
+}
+
+model Club {
+  id        String       @id @default(cuid())
+  name      String
+  cover     String?
+  createdAt DateTime     @default(now())
+  members   ClubMember[]
+}
+
+model ClubMember {
+  userId   Int
+  clubId   String
+  joinedAt DateTime @default(now())
+  club     Club     @relation(fields: [clubId], references: [id])
+
+  @@id([userId, clubId])
+}
+
+model Follow {
+  followerId  Int
+  followingId Int
+  createdAt   DateTime @default(now())
+
+  follower  User @relation("UserFollows", fields: [followerId], references: [id])
+  following User @relation("UserFollowedBy", fields: [followingId], references: [id])
+
+  @@id([followerId, followingId])
 }
