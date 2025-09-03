@@ -107,9 +107,13 @@ function toFrontendBook(b) {
     };
 }
 
+function asInt(v) {
+    const n = Number(v);
+    return Number.isInteger(n) ? n : NaN;
+}
 module.exports = {
     norm, firstAuthorName, stripHtml,
     dedup, topCounts, filterFiction,
     withTimeout, createLimiter,
-    toFrontendBook,
+    toFrontendBook, asInt,
 };

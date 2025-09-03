@@ -1,78 +1,67 @@
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../database/prisma');
+
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
-const CREDENTIAL_INVALID = 'Credenciales inválidas';
-const EMAIL_REGISTERED = 'Email ya registrado';
-const EMAIL_REQUIRED = 'Email requerido';
-const USER_CREATED = 'Usuario creado';
-const USER_NOT_FOUND = 'Usuario no encontrado';
-const REGISTER_ERROR = 'Error en el registro';
-const LOGIN_ERROR = 'Error al iniciar sesión';
-const GET_USER_ERROR = 'Error al obtener ID de usuario';
-
-const prisma = new PrismaClient();
+const MSG = {
+    BAD_CRED: 'Credenciales inválidas',
+    EMAIL_USED: 'Email ya registrado',
+    USER_CREATED: 'Usuario creado',
+    USER_NOT_FOUND: 'Usuario no encontrado',
+    REG_ERR: 'Error en el registro',
+    LOGIN_ERR: 'Error al iniciar sesión',
+    GET_ME_ERR: 'Error al obtener ID de usuario',
+};
 
 exports.register = async (req, res) => {
-    const { username, email, password } = req.body;
     try {
-        const existing = await prisma.user.findUnique({ where: { email } });
-        if (existing) return res.status(400).json({ error: EMAIL_REGISTERED });
+        const { email, password, name = '' } = req.body || {};
+        if (!email || !password) return res.status(400).json({ error: 'Email y password requeridos' });
+        const exists = await prisma.user.findUnique({ where: { email } });
+        if (exists) return res.status(409).json({ error: MSG.EMAIL_USED });
 
-        const hashed = await bcrypt.hash(password, 10);
-        const user = await prisma.user.create({
-            data: { username, email, password: hashed },
-        });
-        res.status(201).json({ message: USER_CREATED, user });
+        const hash = await bcrypt.hash(password, 10);
+        await prisma.user.create({ data: { email, password: hash, name } });
+        res.status(201).json({ message: MSG.USER_CREATED });
     } catch (err) {
-        res.status(500).json({ error: REGISTER_ERROR });
+        res.status(500).json({ error: MSG.REG_ERR });
     }
 };
 
 exports.login = async (req, res) => {
-    const { email, password } = req.body;
     try {
+        const { email, password } = req.body || {};
+        if (!email || !password) return res.status(400).json({ error: MSG.BAD_CRED });
+
         const user = await prisma.user.findUnique({ where: { email } });
-        if (!user) return res.status(401).json({ error: CREDENTIAL_INVALID });
+        if (!user) return res.status(401).json({ error: MSG.BAD_CRED });
 
-        const valid = await bcrypt.compare(password, user.password);
-        if (!valid) return res.status(401).json({ error: CREDENTIAL_INVALID });
+        const ok = await bcrypt.compare(password, user.password);
+        if (!ok) return res.status(401).json({ error: MSG.BAD_CRED });
 
-        const token = jwt.sign({ userId: user.id }, process.env.JWT_SECRET, {
-            expiresIn: '7d',
-        });
-        res.json({ token, user });
+        const token = jwt.sign({ userId: user.id, name: user.name || '' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+        res.json({ token });
     } catch (err) {
-        res.status(500).json({ error: LOGIN_ERROR });
+        res.status(500).json({ error: MSG.LOGIN_ERR });
     }
 };
 
 exports.getUserIdByEmail = async (req, res) => {
-    const { email } = req.query;
-
-    if (!email) return res.status(400).json({ error: EMAIL_REQUIRED });
-
     try {
-        const user = await prisma.user.findUnique({
-            where: { email },
-            select: { id: true },
-        });
-
-        if (!user) return res.status(404).json({ error: USER_NOT_FOUND });
-
-        res.json({ id: user.id });
-    } catch (err) {
-        res.status(500).json({ error: GET_USER_ERROR });
+        const email = req.query?.email || '';
+        const user = email ? await prisma.user.findUnique({ where: { email } }) : null;
+        if (!user) return res.status(404).json({ error: MSG.USER_NOT_FOUND });
+        res.json({ userId: user.id });
+    } catch {
+        res.status(500).json({ error: MSG.GET_ME_ERR });
     }
 };
 
 exports.getUserIdFromToken = async (req, res) => {
     try {
         const { userId } = req.user;
-        res.status(200).json({ userId });
-    } catch (err) {
-        res.status(500).json({ error: USER_NOT_FOUND });
+        res.json({ userId });
+    } catch {
+        res.status(500).json({ error: MSG.USER_NOT_FOUND });
     }
 };
-
-
