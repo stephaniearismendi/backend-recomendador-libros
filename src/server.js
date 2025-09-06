@@ -40,12 +40,14 @@ const bookRoutes = require('./routes/bookRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 const recommenderRoutes = require('./routes/recommenderRoutes');
 const socialRoutes = require('./routes/socialRoutes');
+const seedRoutes = require('./routes/seedRoutes');
 
 app.use('/users', userRoutes);
 app.use('/books', bookRoutes);
 app.use('/favorites', favoriteRoutes);
 app.use('/recommendations', recommenderRoutes);
 app.use('/social', socialRoutes);
+app.use('/seed', seedRoutes);
 
 const PORT = process.env.PORT || 3000;
 const server = app.listen(PORT, () => {

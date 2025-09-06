@@ -11,6 +11,9 @@ const MSG = {
     REG_ERR: 'Error en el registro',
     LOGIN_ERR: 'Error al iniciar sesión',
     GET_ME_ERR: 'Error al obtener ID de usuario',
+    PROFILE_UPDATED: 'Perfil actualizado',
+    PROFILE_ERR: 'Error al actualizar perfil',
+    GET_PROFILE_ERR: 'Error al obtener perfil',
 };
 
 exports.register = async (req, res) => {
@@ -63,5 +66,118 @@ exports.getUserIdFromToken = async (req, res) => {
         res.json({ userId });
     } catch {
         res.status(500).json({ error: MSG.USER_NOT_FOUND });
+    }
+};
+
+// Obtener perfil completo del usuario
+exports.getProfile = async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                name: true,
+                bio: true,
+                avatar: true,
+                createdAt: true,
+                _count: {
+                    select: {
+                        reviews: true,
+                        favorites: true,
+                        following: true,
+                        followers: true
+                    }
+                }
+            }
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: MSG.USER_NOT_FOUND });
+        }
+
+        res.json({ user });
+    } catch (error) {
+        console.error('Error getting profile:', error);
+        res.status(500).json({ error: MSG.GET_PROFILE_ERR });
+    }
+};
+
+// Actualizar perfil del usuario
+exports.updateProfile = async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { name, bio, username } = req.body;
+
+        // Verificar si el username ya existe (si se está cambiando)
+        if (username) {
+            const existingUser = await prisma.user.findFirst({
+                where: {
+                    username: username,
+                    id: { not: userId }
+                }
+            });
+            if (existingUser) {
+                return res.status(409).json({ error: 'El nombre de usuario ya está en uso' });
+            }
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: {
+                ...(name !== undefined && { name }),
+                ...(bio !== undefined && { bio }),
+                ...(username !== undefined && { username })
+            },
+            select: {
+                id: true,
+                username: true,
+                email: true,
+                name: true,
+                bio: true,
+                avatar: true,
+                updatedAt: true
+            }
+        });
+
+        res.json({ 
+            message: MSG.PROFILE_UPDATED, 
+            user: updatedUser 
+        });
+    } catch (error) {
+        console.error('Error updating profile:', error);
+        res.status(500).json({ error: MSG.PROFILE_ERR });
+    }
+};
+
+// Actualizar avatar del usuario
+exports.updateAvatar = async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { avatar } = req.body;
+
+        if (!avatar) {
+            return res.status(400).json({ error: 'URL del avatar requerida' });
+        }
+
+        const updatedUser = await prisma.user.update({
+            where: { id: userId },
+            data: { avatar },
+            select: {
+                id: true,
+                username: true,
+                avatar: true
+            }
+        });
+
+        res.json({ 
+            message: 'Avatar actualizado', 
+            user: updatedUser 
+        });
+    } catch (error) {
+        console.error('Error updating avatar:', error);
+        res.status(500).json({ error: 'Error al actualizar avatar' });
     }
 };

@@ -104,6 +104,7 @@ function toFrontendBook(b) {
             ? Number(b.rating.average)
             : (typeof b.rating === 'number' ? b.rating : null),
         publishedDate: b.publishedDate || b.published_date || null,
+        category: b.category || b.genre || b._subject || null,
     };
 }
 

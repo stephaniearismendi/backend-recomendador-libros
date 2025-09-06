@@ -12,9 +12,19 @@ model User {
   username  String           @unique
   email     String           @unique
   password  String
+  name      String?
+  bio       String?
+  avatar    String?
+  createdAt DateTime         @default(now())
+  updatedAt DateTime         @updatedAt
   reviews   Review[]
   favorites Favorite[]
   sessions  ReadingSession[]
+  posts     Post[]
+  postComments PostComment[]
+  likes     Like[]
+  chapterComments ChapterComment[]
+  stories   Story[]
 
   following Follow[] @relation("UserFollows")
   followers Follow[] @relation("UserFollowedBy")
@@ -62,31 +72,27 @@ model ReadingSession {
   bookId   String
 }
 
-// SOCIAL
-
 model Post {
   id         String    @id @default(cuid())
   userId     Int
-  userName   String
-  userAvatar String
   text       String?
   bookTitle  String?
   bookAuthor String?
   bookCover  String?
   createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id])
   likes      Like[]
-  comments   Comment[]
+  comments   PostComment[]
 }
 
-model Comment {
+model PostComment {
   id         String   @id @default(cuid())
   postId     String
   userId     Int
-  userName   String
-  userAvatar String
   text       String
   createdAt  DateTime @default(now())
   post       Post     @relation(fields: [postId], references: [id])
+  user       User     @relation(fields: [userId], references: [id])
 }
 
 model Like {
@@ -94,25 +100,53 @@ model Like {
   postId    String
   createdAt DateTime @default(now())
   post      Post     @relation(fields: [postId], references: [id])
+  user      User     @relation(fields: [userId], references: [id])
 
   @@id([userId, postId])
 }
 
 model Club {
-  id        String       @id @default(cuid())
+  id        String        @id @default(cuid())
   name      String
   cover     String?
-  createdAt DateTime     @default(now())
-  members   ClubMember[]
+  createdAt DateTime      @default(now())
+  members   ClubMember[]  @relation("ClubMembers")
+  chapters  ClubChapter[] @relation("ClubChapters")
 }
 
 model ClubMember {
   userId   Int
   clubId   String
   joinedAt DateTime @default(now())
-  club     Club     @relation(fields: [clubId], references: [id])
+  club     Club     @relation("ClubMembers", fields: [clubId], references: [id])
 
   @@id([userId, clubId])
+}
+
+model ClubChapter {
+  id        String        @id @default(cuid())
+  clubId    String
+  chapter   Int
+  title     String?
+  createdAt DateTime      @default(now())
+  club      Club          @relation("ClubChapters", fields: [clubId], references: [id])
+  comments  ChapterComment[]
+
+  @@unique([clubId, chapter])
+  @@index([clubId, chapter])
+}
+
+model ChapterComment {
+  id         String   @id @default(cuid())
+  chapterId  String
+  userId     Int
+  text       String
+  createdAt  DateTime @default(now())
+
+  chapter ClubChapter @relation(fields: [chapterId], references: [id])
+  user    User        @relation(fields: [userId], references: [id])
+
+  @@index([chapterId, createdAt])
 }
 
 model Follow {
@@ -124,4 +158,18 @@ model Follow {
   following User @relation("UserFollowedBy", fields: [followingId], references: [id])
 
   @@id([followerId, followingId])
+}
+
+model Story {
+  id        String   @id @default(cuid())
+  userId    Int
+  content   String   // Texto de la historia
+  bookTitle String?  // Libro relacionado (opcional)
+  bookCover String?  // Portada del libro (opcional)
+  createdAt DateTime @default(now())
+  expiresAt DateTime // Las historias expiran después de 24 horas
+  user      User     @relation(fields: [userId], references: [id])
+
+  @@index([userId, createdAt])
+  @@index([expiresAt])
 }
