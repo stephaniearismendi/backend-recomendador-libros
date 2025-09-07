@@ -1,9 +1,9 @@
 const app = require('./app');
+const config = require('./config');
 const logger = require('./core/logger');
 
-const PORT = process.env.PORT || 3000;
-const server = app.listen(PORT, () => {
-    logger.info({ port: PORT }, `Servidor levantado en el puerto ${PORT}`);
+const server = app.listen(config.port, () => {
+    logger.info({ port: config.port, env: config.nodeEnv }, `Servidor levantado en el puerto ${config.port}`);
 });
 
 // Graceful shutdown

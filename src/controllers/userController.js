@@ -262,7 +262,7 @@ exports.changePassword = async (req, res) => {
 };
 
 // Eliminar usuario
-exports.deleteUser = async (req, res) => {
+exports.deleteAccount = async (req, res) => {
     try {
         const { userId } = req.user;
         const { password } = req.body;

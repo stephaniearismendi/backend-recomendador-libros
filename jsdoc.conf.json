@@ -1,0 +1,27 @@
+{
+  "source": {
+    "include": ["./src/"],
+    "includePattern": "\\.(js|jsx)$",
+    "excludePattern": "(node_modules/|tests/|scripts/)"
+  },
+  "opts": {
+    "destination": "./docs/",
+    "recurse": true,
+    "template": "node_modules/docdash"
+  },
+  "plugins": [
+    "plugins/markdown"
+  ],
+  "templates": {
+    "cleverLinks": false,
+    "monospaceLinks": false
+  },
+  "docdash": {
+    "static": true,
+    "sort": true,
+    "meta": {
+      "title": "Backend TFG - API Documentation",
+      "description": "Documentación de la API del backend del TFG"
+    }
+  }
+}

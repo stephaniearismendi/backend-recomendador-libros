@@ -8,13 +8,20 @@
     "test": "cross-env NODE_ENV=test jest",
     "test:watch": "jest --watch",
     "test:coverage": "jest --coverage",
+    "test:unit": "jest tests/unit/",
+    "test:integration": "jest tests/integration/",
     "db:migrate": "prisma migrate dev",
     "db:generate": "prisma generate",
     "db:seed": "node scripts/seed.js",
     "db:reset": "prisma migrate reset",
+    "db:studio": "prisma studio",
     "lint": "eslint src/ tests/",
     "lint:fix": "eslint src/ tests/ --fix",
-    "format": "prettier --write src/ tests/"
+    "format": "prettier --write src/ tests/",
+    "migrate:imports": "node scripts/migrate-imports.js",
+    "validate:config": "node -e \"require('./src/config'); console.log('✅ Configuration is valid')\"",
+    "docs:generate": "jsdoc -c jsdoc.conf.json",
+    "clean": "rm -rf node_modules package-lock.json && npm install"
   },
   "keywords": [
     "nodejs",
