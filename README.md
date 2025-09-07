@@ -144,12 +144,6 @@ Usamos Pino para logs estructurados:
 2. `npx prisma migrate deploy`
 3. `npm start`
 
-## Documentación
-
-- [Perfil de Usuario](API_USER_PROFILE.md)
-- [Sistema de Seguimiento](API_FOLLOW_ENDPOINTS.md)
-- [Posts y Libros](API_POST_BOOK_ENDPOINTS.md)
-
 ## TFG
 
 Desarrollado como parte del Trabajo de Fin de Grado en Ingeniería Informática
