@@ -7,7 +7,9 @@ const {
     getUserIdFromToken,
     getProfile,
     updateProfile,
-    updateAvatar
+    updateAvatar,
+    changePassword,
+    deleteUser
 } = require('../controllers/userController');
 const authMiddleware = require('../middlewares/authMiddleware');
 
@@ -20,5 +22,7 @@ router.get('/me', authMiddleware, getUserIdFromToken);
 router.get('/profile', authMiddleware, getProfile);
 router.put('/profile', authMiddleware, updateProfile);
 router.put('/avatar', authMiddleware, updateAvatar);
+router.put('/password', authMiddleware, changePassword);
+router.delete('/account', authMiddleware, deleteUser);
 
 module.exports = router;

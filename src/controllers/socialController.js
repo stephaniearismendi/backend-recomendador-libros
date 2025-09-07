@@ -26,6 +26,7 @@ exports.getFeed = async (req, res) => {
                 orderBy: { createdAt: 'desc' },
                 include: { 
                     user: true,
+                    book: true,
                     likes: true, 
                     comments: {
                         orderBy: { createdAt: 'asc' },
@@ -40,6 +41,7 @@ exports.getFeed = async (req, res) => {
                 orderBy: { createdAt: 'desc' },
                 include: { 
                     user: true,
+                    book: true,
                     likes: true, 
                     comments: {
                         orderBy: { createdAt: 'asc' },
@@ -50,18 +52,31 @@ exports.getFeed = async (req, res) => {
             });
         }
         
+        console.log(`[getFeed] Found ${posts.length} posts`);
+        
         const data = posts.map(p => ({
             id: p.id,
             user: { id: p.user.id, name: p.user.name || p.user.username, avatar: p.user.avatar },
             time: p.createdAt,
             text: p.text || '',
-            book: p.bookTitle ? { title: p.bookTitle, author: p.bookAuthor, cover: p.bookCover } : null,
+            book: p.book ? { 
+                id: p.book.id,
+                title: p.book.title, 
+                author: p.book.author, 
+                cover: p.book.imageUrl 
+            } : null,
             likes: p.likes.length,
             comments: p.comments.map(c => ({
                 id: c.id,
                 user: { id: c.user.id, name: c.user.name || c.user.username, avatar: c.user.avatar },
                 text: c.text,
-                time: c.createdAt
+                time: c.createdAt,
+                book: c.bookTitle ? { 
+                    title: c.bookTitle, 
+                    author: c.bookAuthor, 
+                    cover: c.bookCover,
+                    id: `/books/${encodeURIComponent(c.bookTitle)}-${encodeURIComponent(c.bookAuthor || '')}`
+                } : null
             }))
         }));
         
@@ -77,17 +92,94 @@ exports.createPost = async (req, res) => {
         const meId = req.user?.userId;
         if (!meId) return res.status(401).json({ error: 'UNAUTHENTICATED' });
         
-        const { text, book } = req.body || {};
+        const { text, bookId, book } = req.body || {};
+        let finalBookId = bookId;
+        
+        // Si se proporciona un objeto book completo, crear o encontrar el libro
+        if (book && book.title && book.author) {
+            // Usar el ID original del libro si está disponible, o generar uno basado en título/autor
+            const bookIdToUse = book.id || `/books/${encodeURIComponent(book.title)}-${encodeURIComponent(book.author)}`;
+            
+            // Buscar si el libro ya existe
+            let existingBook = await prisma.book.findUnique({
+                where: { id: bookIdToUse }
+            });
+            
+            // Si no existe, crearlo
+            if (!existingBook) {
+                existingBook = await prisma.book.create({
+                    data: {
+                        id: bookIdToUse,
+                        title: book.title,
+                        author: book.author,
+                        imageUrl: book.cover || null,
+                        description: book.description || null,
+                        rating: book.rating ? String(book.rating) : null,  // Convertir a string
+                        category: book.category || null
+                    }
+                });
+            } else {
+                // Si existe pero le faltan campos, actualizarlo
+                const updateData = {};
+                if (book.description && !existingBook.description) updateData.description = book.description;
+                if (book.rating && !existingBook.rating) updateData.rating = String(book.rating);  // Convertir a string
+                if (book.category && !existingBook.category) updateData.category = book.category;
+                if (book.cover && !existingBook.imageUrl) updateData.imageUrl = book.cover;
+                
+                if (Object.keys(updateData).length > 0) {
+                    existingBook = await prisma.book.update({
+                        where: { id: bookIdToUse },
+                        data: updateData
+                    });
+                }
+            }
+            
+            finalBookId = existingBook.id;
+        }
+        
+        // Si se proporciona un bookId directo, verificar que el libro existe
+        if (finalBookId && !book) {
+            const book = await prisma.book.findUnique({
+                where: { id: finalBookId }
+            });
+            if (!book) {
+                return res.status(400).json({ error: 'BOOK_NOT_FOUND' });
+            }
+        }
+        
         const created = await prisma.post.create({
             data: {
                 userId: meId,
                 text: text || null,
-                bookTitle: book?.title || null,
-                bookAuthor: book?.author || null,
-                bookCover: book?.cover || null
+                bookId: finalBookId || null
+            },
+            include: {
+                user: true,
+                book: true
             }
         });
-        res.status(201).json({ id: created.id });
+        
+        // Devolver el post completo con la información del libro
+        const response = {
+            id: created.id,
+            user: { 
+                id: created.user.id, 
+                name: created.user.name || created.user.username, 
+                avatar: created.user.avatar 
+            },
+            time: created.createdAt,
+            text: created.text || '',
+            book: created.book ? { 
+                id: created.book.id,
+                title: created.book.title, 
+                author: created.book.author, 
+                cover: created.book.imageUrl 
+            } : null,
+            likes: 0,
+            comments: []
+        };
+        
+        res.status(201).json(response);
     } catch (error) {
         console.error('[createPost]', error);
         res.status(500).json({ error: 'CREATE_POST_ERROR' });
@@ -114,14 +206,17 @@ exports.addComment = async (req, res) => {
         if (!meId) return res.status(401).json({ error: 'UNAUTHENTICATED' });
         
         const { postId } = req.params;
-        const { text } = req.body || {};
+        const { text, book } = req.body || {};
         if (!text || !text.trim()) return res.status(400).json({ error: 'EMPTY_COMMENT' });
         
         const comment = await prisma.postComment.create({
             data: {
                 postId,
                 userId: meId,
-                text: text.trim()
+                text: text.trim(),
+                bookTitle: book?.title || null,
+                bookAuthor: book?.author || null,
+                bookCover: book?.cover || null
             },
             include: { user: true }
         });
@@ -130,7 +225,13 @@ exports.addComment = async (req, res) => {
             id: comment.id,
             user: { id: comment.user.id, name: comment.user.name || comment.user.username, avatar: comment.user.avatar },
             text: comment.text,
-            time: comment.createdAt
+            time: comment.createdAt,
+            book: comment.bookTitle ? { 
+                title: comment.bookTitle, 
+                author: comment.bookAuthor, 
+                cover: comment.bookCover,
+                id: `/books/${encodeURIComponent(comment.bookTitle)}-${encodeURIComponent(comment.bookAuthor || '')}`
+            } : null
         });
     } catch (error) {
         console.error('[addComment]', error);
@@ -582,7 +683,7 @@ exports.createClub = async (req, res) => {
         const n = Math.max(0, parseInt(chapters, 10) || 0);
         if (n > 0) {
             const toCreate = Array.from({ length: n }, (_, i) => i + 1);
-            await prisma.$transaction(
+            const createdChapters = await prisma.$transaction(
                 toCreate.map((num) =>
                     prisma.clubChapter.create({
                         data: {
@@ -595,12 +696,115 @@ exports.createClub = async (req, res) => {
                     }),
                 ),
             );
+
+            // Generar comentarios aleatorios para los capítulos creados
+            await generateRandomChapterComments(createdChapters);
         }
 
         res.status(201).json({ id: club.id, name: club.name, cover: club.cover });
     } catch (e) {
         console.error('[createClub]', e);
         res.status(500).json({ error: 'CREATE_CLUB_ERROR' });
+    }
+};
+
+// Función para generar comentarios aleatorios en capítulos
+async function generateRandomChapterComments(chapters) {
+    try {
+        // Obtener usuarios aleatorios para los comentarios
+        const users = await prisma.user.findMany({
+            select: { id: true },
+            take: 20
+        });
+
+        if (users.length === 0) {
+            console.log('No hay usuarios para generar comentarios');
+            return;
+        }
+
+        // Comentarios de ejemplo para capítulos de club
+        const sampleComments = [
+            "¡Qué capítulo tan interesante! Me encanta cómo se desarrolla la trama.",
+            "Este capítulo me dejó con muchas preguntas. ¿Qué opinan ustedes?",
+            "La descripción de los personajes en este capítulo es increíble.",
+            "No puedo esperar a leer el siguiente capítulo. ¡Qué suspenso!",
+            "Este capítulo me recordó a otra obra que leí. ¿Alguien más notó la similitud?",
+            "La prosa del autor en este capítulo es simplemente hermosa.",
+            "Me encanta cómo el autor maneja los diálogos aquí.",
+            "Este capítulo cambió completamente mi perspectiva sobre el protagonista.",
+            "¿Alguien más se sintió identificado con lo que pasó en este capítulo?",
+            "La ambientación en este capítulo es perfecta para la historia.",
+            "No me esperaba ese giro en la trama. ¡Qué sorpresa!",
+            "Este capítulo me hizo reflexionar mucho sobre el tema principal.",
+            "La tensión en este capítulo es palpable. ¡Excelente escritura!",
+            "Me encanta cómo el autor construye el mundo en este capítulo.",
+            "Este capítulo tiene algunos de mis pasajes favoritos del libro.",
+            "La evolución del personaje en este capítulo es notable.",
+            "¿Qué piensan sobre el simbolismo en este capítulo?",
+            "Este capítulo me emocionó mucho. ¡Qué bien escrito!",
+            "La estructura narrativa de este capítulo es muy inteligente.",
+            "Este capítulo me dejó con ganas de más. ¡Qué adictivo!"
+        ];
+
+        // Generar comentarios para cada capítulo
+        for (const chapter of chapters) {
+            const numComments = Math.floor(Math.random() * 8) + 3; // 3-10 comentarios por capítulo
+            const chapterComments = [];
+
+            for (let i = 0; i < numComments; i++) {
+                const randomUser = users[Math.floor(Math.random() * users.length)];
+                const randomComment = sampleComments[Math.floor(Math.random() * sampleComments.length)];
+                
+                chapterComments.push({
+                    chapterId: chapter.id,
+                    userId: randomUser.id,
+                    text: randomComment
+                });
+            }
+
+            // Crear los comentarios en lotes
+            if (chapterComments.length > 0) {
+                await prisma.chapterComment.createMany({
+                    data: chapterComments
+                });
+            }
+        }
+
+        console.log(`✅ Comentarios aleatorios generados para ${chapters.length} capítulos`);
+    } catch (error) {
+        console.error('Error generando comentarios aleatorios:', error);
+    }
+}
+
+// Endpoint para generar comentarios en capítulos existentes
+exports.generateChapterComments = async (req, res) => {
+    try {
+        const { clubId } = req.params;
+        
+        if (!clubId) {
+            return res.status(400).json({ error: 'ID del club requerido' });
+        }
+
+        // Obtener todos los capítulos del club
+        const chapters = await prisma.clubChapter.findMany({
+            where: { clubId },
+            select: { id: true, chapter: true, title: true }
+        });
+
+        if (chapters.length === 0) {
+            return res.status(404).json({ error: 'No se encontraron capítulos en este club' });
+        }
+
+        // Generar comentarios para los capítulos existentes
+        await generateRandomChapterComments(chapters);
+
+        res.json({ 
+            message: `Comentarios generados para ${chapters.length} capítulos`,
+            chapters: chapters.length
+        });
+    } catch (error) {
+        console.error('Error generando comentarios en capítulos existentes:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
 };
 
@@ -709,6 +913,67 @@ exports.getStories = async (req, res) => {
     }
 };
 
+// Obtener historias de un usuario específico por ID
+exports.getUserStories = async (req, res) => {
+    try {
+        const { userId } = req.params;
+        
+        if (!userId || isNaN(parseInt(userId))) {
+            return res.status(400).json({ error: 'ID de usuario inválido' });
+        }
+
+        const userIdInt = parseInt(userId);
+
+        // Verificar que el usuario existe
+        const user = await prisma.user.findUnique({
+            where: { id: userIdInt },
+            select: { id: true, name: true, username: true, avatar: true }
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: 'Usuario no encontrado' });
+        }
+
+        // Obtener historias del usuario (que no hayan expirado)
+        const stories = await prisma.story.findMany({
+            where: {
+                userId: userIdInt,
+                expiresAt: {
+                    gt: new Date() // Solo historias que no han expirado
+                }
+            },
+            orderBy: { createdAt: 'desc' },
+            take: 50
+        });
+
+        // Formatear las historias
+        const formattedStories = stories.map(story => ({
+            id: story.id,
+            content: story.content,
+            book: story.bookTitle ? {
+                title: story.bookTitle,
+                cover: story.bookCover
+            } : null,
+            createdAt: story.createdAt,
+            expiresAt: story.expiresAt
+        }));
+
+        res.json({
+            user: {
+                id: user.id,
+                name: user.name || user.username,
+                username: user.username,
+                avatar: user.avatar
+            },
+            stories: formattedStories,
+            count: formattedStories.length
+        });
+    } catch (error) {
+        console.error('[getUserStories]', error);
+        res.status(500).json({ error: 'Error al obtener historias del usuario' });
+    }
+};
+
 // Limpiar historias expiradas (endpoint para mantenimiento)
 exports.cleanExpiredStories = async (req, res) => {
     try {
@@ -739,5 +1004,42 @@ exports.seedStories = async (req, res) => {
     } catch (error) {
         console.error('[seedStories]', error);
         res.status(500).json({ error: 'Error al crear historias de ejemplo' });
+    }
+};
+
+// Eliminar un post
+exports.deletePost = async (req, res) => {
+    try {
+        const { postId } = req.params;
+        const { userId } = req.user; // Asumiendo que tienes middleware de autenticación
+
+        if (!postId) {
+            return res.status(400).json({ error: 'ID del post requerido' });
+        }
+
+        // Verificar que el post existe y pertenece al usuario
+        const post = await prisma.post.findUnique({
+            where: { id: postId },
+            select: { id: true, userId: true }
+        });
+
+        if (!post) {
+            return res.status(404).json({ error: 'Post no encontrado' });
+        }
+
+        // Verificar que el usuario es el propietario del post
+        if (post.userId !== userId) {
+            return res.status(403).json({ error: 'No tienes permisos para eliminar este post' });
+        }
+
+        // Eliminar el post (Prisma eliminará automáticamente los comentarios y likes relacionados)
+        await prisma.post.delete({
+            where: { id: postId }
+        });
+
+        res.json({ message: 'Post eliminado exitosamente' });
+    } catch (error) {
+        console.error('Error deleting post:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
 };

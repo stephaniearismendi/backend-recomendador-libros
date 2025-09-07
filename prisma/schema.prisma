@@ -41,6 +41,7 @@ model Book {
   reviews     Review[]
   favorites   Favorite[]
   sessions    ReadingSession[]
+  posts       Post[]
 }
 
 model Favorite {
@@ -76,11 +77,10 @@ model Post {
   id         String    @id @default(cuid())
   userId     Int
   text       String?
-  bookTitle  String?
-  bookAuthor String?
-  bookCover  String?
+  bookId     String?
   createdAt  DateTime  @default(now())
   user       User      @relation(fields: [userId], references: [id])
+  book       Book?     @relation(fields: [bookId], references: [id])
   likes      Like[]
   comments   PostComment[]
 }
@@ -90,6 +90,9 @@ model PostComment {
   postId     String
   userId     Int
   text       String
+  bookTitle  String?
+  bookAuthor String?
+  bookCover  String?
   createdAt  DateTime @default(now())
   post       Post     @relation(fields: [postId], references: [id])
   user       User     @relation(fields: [userId], references: [id])

@@ -73,36 +73,58 @@ exports.getFavorites = async (req, res) => {
 
 exports.addFavorite = async (req, res) => {
     const userId = Number(req.params.userId);
-    const bookId = normBookId(
-        req.params.bookId ?? req.query.bookId ?? req.body.bookId ?? req.body.id
-    );
-    if (!Number.isInteger(userId) || !bookId) {
+    const rawBookId = req.params.bookId ?? req.query.bookId ?? req.body.bookId ?? req.body.id;
+    
+    if (!Number.isInteger(userId) || !rawBookId) {
         return res.status(400).json({ error: 'Parámetros inválidos' });
     }
 
     try {
         const b = req.body || {};
-        const img = coverFrom(b); // incluye NYT (book_image) e ISBN
+        
+        // Usar el ID original del libro (no normalizar)
+        let bookId = rawBookId;
+        
+        // Extraer datos del objeto book si existe, o usar datos directos
+        const bookData = b.book || b;
+        
+        // Solo si no tenemos un ID válido, generar uno basado en título/autor
+        if (!bookId && bookData.title && bookData.author) {
+            bookId = `/books/${encodeURIComponent(bookData.title)}-${encodeURIComponent(bookData.author)}`;
+        }
+        
+        console.log('[addFavorite] Debug:', { 
+            userId, 
+            rawBookId, 
+            bookId, 
+            title: bookData.title, 
+            author: bookData.author,
+            description: bookData.description,
+            book: b.book,
+            fullBody: b
+        });
+        
+        const img = coverFrom(bookData); // incluye NYT (book_image) e ISBN
 
         // guarda/actualiza el libro con la portada en imageUrl (según tu esquema)
         await prisma.book.upsert({
             where: { id: bookId },
             update: {
-                title: b.title ?? undefined,
-                author: b.author ?? undefined,
+                title: bookData.title ?? undefined,
+                author: bookData.author ?? undefined,
                 imageUrl: img ?? undefined,          // 👈 AQUÍ guardamos la URL
-                description: b.description ?? undefined,
-                rating: b.rating ?? undefined,
-                category: b.category ?? undefined,
+                description: bookData.description ?? undefined,
+                rating: bookData.rating ? String(bookData.rating) : undefined,  // Convertir a string
+                category: bookData.category ?? undefined,
             },
             create: {
                 id: bookId,
-                title: b.title || '',
-                author: b.author || '',
+                title: bookData.title || 'Libro sin título',
+                author: bookData.author || 'Autor desconocido',
                 imageUrl: img || null,               // 👈 y al crear también
-                description: b.description ?? null,
-                rating: b.rating ?? null,
-                category: b.category ?? null,
+                description: bookData.description ?? null,
+                rating: bookData.rating ? String(bookData.rating) : null,      // Convertir a string
+                category: bookData.category ?? null,
             },
         });
 

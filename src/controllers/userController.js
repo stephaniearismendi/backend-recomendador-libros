@@ -14,6 +14,13 @@ const MSG = {
     PROFILE_UPDATED: 'Perfil actualizado',
     PROFILE_ERR: 'Error al actualizar perfil',
     GET_PROFILE_ERR: 'Error al obtener perfil',
+    PASSWORD_CHANGED: 'Contraseña actualizada',
+    PASSWORD_ERR: 'Error al cambiar contraseña',
+    OLD_PASSWORD_INVALID: 'La contraseña actual es incorrecta',
+    PASSWORD_REQUIRED: 'Contraseña actual y nueva contraseña requeridas',
+    USER_DELETED: 'Usuario eliminado',
+    DELETE_ERR: 'Error al eliminar usuario',
+    DELETE_PASSWORD_REQUIRED: 'Contraseña requerida para eliminar cuenta',
 };
 
 exports.register = async (req, res) => {
@@ -23,10 +30,22 @@ exports.register = async (req, res) => {
         const exists = await prisma.user.findUnique({ where: { email } });
         if (exists) return res.status(409).json({ error: MSG.EMAIL_USED });
 
+        // Generar username único basado en el email
+        const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+        let username = baseUsername;
+        let counter = 1;
+        
+        // Verificar que el username sea único
+        while (await prisma.user.findUnique({ where: { username } })) {
+            username = `${baseUsername}${counter}`;
+            counter++;
+        }
+
         const hash = await bcrypt.hash(password, 10);
-        await prisma.user.create({ data: { email, password: hash, name } });
+        await prisma.user.create({ data: { email, password: hash, name, username } });
         res.status(201).json({ message: MSG.USER_CREATED });
     } catch (err) {
+        console.error('Error en registro:', err);
         res.status(500).json({ error: MSG.REG_ERR });
     }
 };
@@ -73,6 +92,8 @@ exports.getUserIdFromToken = async (req, res) => {
 exports.getProfile = async (req, res) => {
     try {
         const { userId } = req.user;
+        console.log('[getProfile] userId:', userId);
+        
         const user = await prisma.user.findUnique({
             where: { id: userId },
             select: {
@@ -95,9 +116,11 @@ exports.getProfile = async (req, res) => {
         });
 
         if (!user) {
+            console.log('[getProfile] Usuario no encontrado');
             return res.status(404).json({ error: MSG.USER_NOT_FOUND });
         }
 
+        console.log('[getProfile] Usuario encontrado con _count:', user._count);
         res.json({ user });
     } catch (error) {
         console.error('Error getting profile:', error);
@@ -179,5 +202,93 @@ exports.updateAvatar = async (req, res) => {
     } catch (error) {
         console.error('Error updating avatar:', error);
         res.status(500).json({ error: 'Error al actualizar avatar' });
+    }
+};
+
+// Cambiar contraseña del usuario
+exports.changePassword = async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { currentPassword, newPassword } = req.body;
+
+        // Validar que se proporcionen ambas contraseñas
+        if (!currentPassword || !newPassword) {
+            return res.status(400).json({ error: MSG.PASSWORD_REQUIRED });
+        }
+
+        // Validar que la nueva contraseña tenga al menos 6 caracteres
+        if (newPassword.length < 6) {
+            return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+        }
+
+        // Obtener el usuario actual
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, password: true }
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: MSG.USER_NOT_FOUND });
+        }
+
+        // Verificar que la contraseña actual sea correcta
+        const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
+        if (!isCurrentPasswordValid) {
+            return res.status(401).json({ error: MSG.OLD_PASSWORD_INVALID });
+        }
+
+        // Encriptar la nueva contraseña
+        const hashedNewPassword = await bcrypt.hash(newPassword, 10);
+
+        // Actualizar la contraseña en la base de datos
+        await prisma.user.update({
+            where: { id: userId },
+            data: { password: hashedNewPassword }
+        });
+
+        res.json({ message: MSG.PASSWORD_CHANGED });
+    } catch (error) {
+        console.error('Error changing password:', error);
+        res.status(500).json({ error: MSG.PASSWORD_ERR });
+    }
+};
+
+// Eliminar usuario
+exports.deleteUser = async (req, res) => {
+    try {
+        const { userId } = req.user;
+        const { password } = req.body;
+
+        // Validar que se proporcione la contraseña
+        if (!password) {
+            return res.status(400).json({ error: MSG.DELETE_PASSWORD_REQUIRED });
+        }
+
+        // Obtener el usuario actual
+        const user = await prisma.user.findUnique({
+            where: { id: userId },
+            select: { id: true, password: true }
+        });
+
+        if (!user) {
+            return res.status(404).json({ error: MSG.USER_NOT_FOUND });
+        }
+
+        // Verificar que la contraseña sea correcta
+        const isPasswordValid = await bcrypt.compare(password, user.password);
+        if (!isPasswordValid) {
+            return res.status(401).json({ error: MSG.BAD_CRED });
+        }
+
+        // Eliminar el usuario (esto también eliminará automáticamente todos los datos relacionados
+        // debido a las restricciones de clave foránea configuradas en Prisma)
+        await prisma.user.delete({
+            where: { id: userId }
+        });
+
+        res.json({ message: MSG.USER_DELETED });
+    } catch (error) {
+        console.error('Error deleting user:', error);
+        res.status(500).json({ error: MSG.DELETE_ERR });
     }
 };

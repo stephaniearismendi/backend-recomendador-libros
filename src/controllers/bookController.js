@@ -12,6 +12,7 @@ const ERRORS = {
     FAVORITES_GET: 'No se pudieron obtener los favoritos',
     FAVORITES_ADD: 'No se pudo agregar el favorito',
     FAVORITES_REMOVE: 'No se pudo eliminar el favorito',
+    BOOK_NOT_FOUND: 'Libro no encontrado',
 };
 
 const getBasicBookInfo = async (w) => {
@@ -435,5 +436,57 @@ exports.removeFavorite = async (req, res) => {
     } catch (err) {
         console.error(ERRORS.FAVORITES_REMOVE, err);
         res.status(500).json({ error: ERRORS.FAVORITES_REMOVE });
+    }
+};
+
+// Obtener datos completos de un libro por ID
+exports.getBookById = async (req, res) => {
+    try {
+        const { bookId } = req.params;
+        if (!bookId) {
+            return res.status(400).json({ error: 'ID de libro requerido' });
+        }
+
+        const book = await prisma.book.findUnique({
+            where: { id: bookId },
+            select: {
+                id: true,
+                title: true,
+                author: true,
+                imageUrl: true,
+                description: true,
+                rating: true,
+                category: true,
+                _count: {
+                    select: {
+                        favorites: true,
+                        reviews: true,
+                        posts: true
+                    }
+                }
+            }
+        });
+
+        if (!book) {
+            return res.status(404).json({ error: ERRORS.BOOK_NOT_FOUND });
+        }
+
+        res.json({ 
+            id: book.id,
+            title: book.title,
+            author: book.author,
+            cover: book.imageUrl,
+            description: book.description,
+            rating: book.rating,
+            category: book.category,
+            stats: {
+                favorites: book._count.favorites,
+                reviews: book._count.reviews,
+                posts: book._count.posts
+            }
+        });
+    } catch (error) {
+        console.error('Error getting book by ID:', error);
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
 };
