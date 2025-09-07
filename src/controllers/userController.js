@@ -26,15 +26,19 @@ const MSG = {
 exports.register = async (req, res) => {
     try {
         const { email, password, name = '' } = req.body || {};
-        if (!email || !password) return res.status(400).json({ error: 'Email y password requeridos' });
+        if (!email || !password)
+            return res.status(400).json({ error: 'Email y password requeridos' });
         const exists = await prisma.user.findUnique({ where: { email } });
         if (exists) return res.status(409).json({ error: MSG.EMAIL_USED });
 
         // Generar username único basado en el email
-        const baseUsername = email.split('@')[0].toLowerCase().replace(/[^a-z0-9]/g, '');
+        const baseUsername = email
+            .split('@')[0]
+            .toLowerCase()
+            .replace(/[^a-z0-9]/g, '');
         let username = baseUsername;
         let counter = 1;
-        
+
         // Verificar que el username sea único
         while (await prisma.user.findUnique({ where: { username } })) {
             username = `${baseUsername}${counter}`;
@@ -61,7 +65,9 @@ exports.login = async (req, res) => {
         const ok = await bcrypt.compare(password, user.password);
         if (!ok) return res.status(401).json({ error: MSG.BAD_CRED });
 
-        const token = jwt.sign({ userId: user.id, name: user.name || '' }, process.env.JWT_SECRET, { expiresIn: '7d' });
+        const token = jwt.sign({ userId: user.id, name: user.name || '' }, process.env.JWT_SECRET, {
+            expiresIn: '7d',
+        });
         res.json({ token });
     } catch (err) {
         res.status(500).json({ error: MSG.LOGIN_ERR });
@@ -93,7 +99,7 @@ exports.getProfile = async (req, res) => {
     try {
         const { userId } = req.user;
         console.log('[getProfile] userId:', userId);
-        
+
         const user = await prisma.user.findUnique({
             where: { id: userId },
             select: {
@@ -109,10 +115,10 @@ exports.getProfile = async (req, res) => {
                         reviews: true,
                         favorites: true,
                         following: true,
-                        followers: true
-                    }
-                }
-            }
+                        followers: true,
+                    },
+                },
+            },
         });
 
         if (!user) {
@@ -139,8 +145,8 @@ exports.updateProfile = async (req, res) => {
             const existingUser = await prisma.user.findFirst({
                 where: {
                     username: username,
-                    id: { not: userId }
-                }
+                    id: { not: userId },
+                },
             });
             if (existingUser) {
                 return res.status(409).json({ error: 'El nombre de usuario ya está en uso' });
@@ -152,7 +158,7 @@ exports.updateProfile = async (req, res) => {
             data: {
                 ...(name !== undefined && { name }),
                 ...(bio !== undefined && { bio }),
-                ...(username !== undefined && { username })
+                ...(username !== undefined && { username }),
             },
             select: {
                 id: true,
@@ -161,13 +167,13 @@ exports.updateProfile = async (req, res) => {
                 name: true,
                 bio: true,
                 avatar: true,
-                updatedAt: true
-            }
+                updatedAt: true,
+            },
         });
 
-        res.json({ 
-            message: MSG.PROFILE_UPDATED, 
-            user: updatedUser 
+        res.json({
+            message: MSG.PROFILE_UPDATED,
+            user: updatedUser,
         });
     } catch (error) {
         console.error('Error updating profile:', error);
@@ -191,13 +197,13 @@ exports.updateAvatar = async (req, res) => {
             select: {
                 id: true,
                 username: true,
-                avatar: true
-            }
+                avatar: true,
+            },
         });
 
-        res.json({ 
-            message: 'Avatar actualizado', 
-            user: updatedUser 
+        res.json({
+            message: 'Avatar actualizado',
+            user: updatedUser,
         });
     } catch (error) {
         console.error('Error updating avatar:', error);
@@ -218,13 +224,15 @@ exports.changePassword = async (req, res) => {
 
         // Validar que la nueva contraseña tenga al menos 6 caracteres
         if (newPassword.length < 6) {
-            return res.status(400).json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+            return res
+                .status(400)
+                .json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
         }
 
         // Obtener el usuario actual
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { id: true, password: true }
+            select: { id: true, password: true },
         });
 
         if (!user) {
@@ -243,7 +251,7 @@ exports.changePassword = async (req, res) => {
         // Actualizar la contraseña en la base de datos
         await prisma.user.update({
             where: { id: userId },
-            data: { password: hashedNewPassword }
+            data: { password: hashedNewPassword },
         });
 
         res.json({ message: MSG.PASSWORD_CHANGED });
@@ -267,7 +275,7 @@ exports.deleteUser = async (req, res) => {
         // Obtener el usuario actual
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { id: true, password: true }
+            select: { id: true, password: true },
         });
 
         if (!user) {
@@ -283,7 +291,7 @@ exports.deleteUser = async (req, res) => {
         // Eliminar el usuario (esto también eliminará automáticamente todos los datos relacionados
         // debido a las restricciones de clave foránea configuradas en Prisma)
         await prisma.user.delete({
-            where: { id: userId }
+            where: { id: userId },
         });
 
         res.json({ message: MSG.USER_DELETED });

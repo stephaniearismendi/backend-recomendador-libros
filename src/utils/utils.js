@@ -27,18 +27,20 @@ function stripHtml(html) {
         .replace(/&nbsp;/g, ' ')
         .replace(/&amp;/g, '&')
         .replace(/&quot;/g, '"')
-        .replace(/&#39;/g, "'")
+        .replace(/&#39;/g, '\'')
         .replace(/&lt;/g, '<')
         .replace(/&gt;/g, '>')
         .trim();
 }
 
 function dedup(items) {
-    const seen = new Set(); const out = [];
+    const seen = new Set();
+    const out = [];
     for (const it of items) {
         const k = `${norm(it.title)}::${norm(it.author)}`;
         if (seen.has(k)) continue;
-        seen.add(k); out.push(it);
+        seen.add(k);
+        out.push(it);
     }
     return out;
 }
@@ -54,30 +56,48 @@ function topCounts(arr, k = 5) {
 
 function filterFiction(cands = []) {
     const bad = [
-        'literary criticism','criticism','historia','history','ensayo','manual',
-        'textbook','guide','teacher','linguistics','study guide','analysis',
-        'notes','introducción','introduction','reference'
+        'literary criticism',
+        'criticism',
+        'historia',
+        'history',
+        'ensayo',
+        'manual',
+        'textbook',
+        'guide',
+        'teacher',
+        'linguistics',
+        'study guide',
+        'analysis',
+        'notes',
+        'introducción',
+        'introduction',
+        'reference',
     ];
-    return cands.filter(c => {
+    return cands.filter((c) => {
         const t = norm(c.title);
         const cats = (c.genres || c.subjects || []).map(norm).join(' | ');
-        return !bad.some(w => t.includes(w) || cats.includes(w));
+        return !bad.some((w) => t.includes(w) || cats.includes(w));
     });
 }
 
 function withTimeout(promise, ms = 12000, label = 'op') {
     let t;
-    const to = new Promise((_, rej) => (t = setTimeout(() => rej(new Error(`timeout:${label}`)), ms)));
+    const to = new Promise(
+        (_, rej) => (t = setTimeout(() => rej(new Error(`timeout:${label}`)), ms))
+    );
     return Promise.race([promise.finally(() => clearTimeout(t)), to]);
 }
 
 function createLimiter(max = Number(process.env.HTTP_CONCURRENCY || 6)) {
-    let active = 0; const queue = [];
+    let active = 0;
+    const queue = [];
     const run = async (fn, resolve, reject) => {
         active++;
-        try { resolve(await fn()); }
-        catch (e) { reject(e); }
-        finally {
+        try {
+            resolve(await fn());
+        } catch (e) {
+            reject(e);
+        } finally {
             active--;
             if (queue.length) {
                 const next = queue.shift();
@@ -85,10 +105,11 @@ function createLimiter(max = Number(process.env.HTTP_CONCURRENCY || 6)) {
             }
         }
     };
-    return (fn) => new Promise((res, rej) => {
-        if (active < max) run(fn, res, rej);
-        else queue.push({ fn, resolve: res, reject: rej });
-    });
+    return (fn) =>
+        new Promise((res, rej) => {
+            if (active < max) run(fn, res, rej);
+            else queue.push({ fn, resolve: res, reject: rej });
+        });
 }
 
 function toFrontendBook(b) {
@@ -100,9 +121,12 @@ function toFrontendBook(b) {
         author,
         image: b.image || b.image_url || b.cover || null,
         description: b.description || '',
-        rating: typeof b.rating?.average === 'number'
-            ? Number(b.rating.average)
-            : (typeof b.rating === 'number' ? b.rating : null),
+        rating:
+            typeof b.rating?.average === 'number'
+                ? Number(b.rating.average)
+                : typeof b.rating === 'number'
+                    ? b.rating
+                    : null,
         publishedDate: b.publishedDate || b.published_date || null,
         category: b.category || b.genre || b._subject || null,
     };
@@ -113,8 +137,14 @@ function asInt(v) {
     return Number.isInteger(n) ? n : NaN;
 }
 module.exports = {
-    norm, firstAuthorName, stripHtml,
-    dedup, topCounts, filterFiction,
-    withTimeout, createLimiter,
-    toFrontendBook, asInt,
+    norm,
+    firstAuthorName,
+    stripHtml,
+    dedup,
+    topCounts,
+    filterFiction,
+    withTimeout,
+    createLimiter,
+    toFrontendBook,
+    asInt,
 };

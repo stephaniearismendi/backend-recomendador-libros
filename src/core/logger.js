@@ -18,7 +18,7 @@ const logger = pino({
                 translateTime: 'HH:MM:ss.l',
                 ignore: 'pid,hostname',
                 messageFormat:
-                    '{req.method} {req.url} -> {res.statusCode} {responseTime}ms {contentLength}b{#if userId} user={userId}{/if} reqId={req.id}',
+                      '{req.method} {req.url} -> {res.statusCode} {responseTime}ms {contentLength}b{#if userId} user={userId}{/if} reqId={req.id}',
             },
         }
         : undefined,

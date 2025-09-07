@@ -7,15 +7,10 @@ const {
     getBookDetails,
     getAdaptedBooks,
     getNYTBooks,
-    getBookById
+    getBookById,
 } = require('../controllers/bookController');
 
-const {
-    getFavorites,
-    addFavorite,
-    removeFavorite
-} = require('../controllers/favoriteController');
-
+const { getFavorites, addFavorite, removeFavorite } = require('../controllers/favoriteController');
 
 router.get('/search', searchBooks);
 router.get('/popular', getPopularBooks);

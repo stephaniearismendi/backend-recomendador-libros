@@ -1,6 +1,5 @@
 // src/controllers/clubRoomController.js
-const { PrismaClient } = require('@prisma/client');
-const prisma = new PrismaClient();
+const prisma = require('../database/prisma');
 
 function meFromReq(req) {
     const id = Number(req.user?.userId || 0);
@@ -43,8 +42,8 @@ exports.listChapters = async (req, res) => {
         const n = 8 + Math.floor(Math.random() * 11);
         await prisma.$transaction(
             Array.from({ length: n }, (_, i) =>
-                prisma.clubChapter.create({ data: { clubId, chapter: i + 1, title: null } }),
-            ),
+                prisma.clubChapter.create({ data: { clubId, chapter: i + 1, title: null } })
+            )
         );
         chapters = await prisma.clubChapter.findMany({
             where: { clubId },
@@ -65,7 +64,6 @@ exports.listChapters = async (req, res) => {
     }));
     res.json(data);
 };
-
 
 // POST /social/clubs/:clubId/chapters  { chapter, title? }
 exports.createChapter = async (req, res) => {
@@ -102,17 +100,17 @@ exports.listComments = async (req, res) => {
         where,
         orderBy: { createdAt: 'desc' },
         take: limit,
-        include: { user: true }
+        include: { user: true },
     });
 
     // Transformar para mantener compatibilidad con el frontend
-    const comments = rows.reverse().map(comment => ({
+    const comments = rows.reverse().map((comment) => ({
         id: comment.id,
         userId: comment.userId,
         userName: comment.user.name || comment.user.username,
         userAvatar: comment.user.avatar,
         text: comment.text,
-        createdAt: comment.createdAt
+        createdAt: comment.createdAt,
     }));
 
     res.json(comments);
@@ -120,7 +118,7 @@ exports.listComments = async (req, res) => {
 
 // POST /social/clubs/:clubId/chapters/:chapter/messages  { text }
 exports.postMessage = async (req, res) => {
-    const { id: userId, name: userName, avatar: userAvatar } = meFromReq(req);
+    const { id: userId } = meFromReq(req);
     if (!userId) return res.status(401).json({ error: 'UNAUTHENTICATED' });
 
     const { clubId, chapter } = req.params;
@@ -137,7 +135,7 @@ exports.postMessage = async (req, res) => {
 
     const comment = await prisma.chapterComment.create({
         data: { chapterId: ch.id, userId, text },
-        include: { user: true }
+        include: { user: true },
     });
 
     res.status(201).json({
@@ -146,6 +144,10 @@ exports.postMessage = async (req, res) => {
         createdAt: comment.createdAt,
         userId: comment.userId,
         userName: comment.user.name || comment.user.username,
-        userAvatar: comment.user.avatar
+        userAvatar: comment.user.avatar,
     });
 };
+
+// Alias for test compatibility
+exports.getChapterComments = exports.listComments;
+exports.addChapterComment = exports.postMessage;

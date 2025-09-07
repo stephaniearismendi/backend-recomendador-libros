@@ -2,7 +2,11 @@ const prisma = require('../database/prisma');
 
 // -------- helpers ----------
 const safeDecode = (s) => {
-    try { return decodeURIComponent(String(s ?? '')); } catch { return String(s ?? ''); }
+    try {
+        return decodeURIComponent(String(s ?? ''));
+    } catch {
+        return String(s ?? '');
+    }
 };
 const normBookId = (raw) => {
     const d = safeDecode(raw).trim();
@@ -33,7 +37,8 @@ function coverFrom(b = {}) {
     const isbn = firstIsbn(b);
     if (isbn) return `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg`;
     if (b.cover_i) return `https://covers.openlibrary.org/b/id/${b.cover_i}-L.jpg`;
-    if (b.title) return `https://covers.openlibrary.org/b/title/${encodeURIComponent(b.title)}-L.jpg`;
+    if (b.title)
+        return `https://covers.openlibrary.org/b/title/${encodeURIComponent(b.title)}-L.jpg`;
     return null;
 }
 
@@ -49,20 +54,22 @@ exports.getFavorites = async (req, res) => {
         });
 
         // asegura que siempre devolvemos una URL de portada
-        const out = favorites.map(({ book }) => {
-            if (!book) {
-                console.warn('Favorite without book found');
-                return null;
-            }
-            const img = book?.imageUrl || coverFrom(book) || null;
-            return {
-                ...book,
-                imageUrl: img,
-                image: img,     // por compat con componentes que miran "image"
-                coverUrl: img,
-                cover: img,
-            };
-        }).filter(Boolean);
+        const out = favorites
+            .map(({ book }) => {
+                if (!book) {
+                    console.warn('Favorite without book found');
+                    return null;
+                }
+                const img = book?.imageUrl || coverFrom(book) || null;
+                return {
+                    ...book,
+                    imageUrl: img,
+                    image: img, // por compat con componentes que miran "image"
+                    coverUrl: img,
+                    cover: img,
+                };
+            })
+            .filter(Boolean);
 
         res.json(out);
     } catch (err) {
@@ -74,36 +81,36 @@ exports.getFavorites = async (req, res) => {
 exports.addFavorite = async (req, res) => {
     const userId = Number(req.params.userId);
     const rawBookId = req.params.bookId ?? req.query.bookId ?? req.body.bookId ?? req.body.id;
-    
+
     if (!Number.isInteger(userId) || !rawBookId) {
         return res.status(400).json({ error: 'Parámetros inválidos' });
     }
 
     try {
         const b = req.body || {};
-        
+
         // Usar el ID original del libro (no normalizar)
         let bookId = rawBookId;
-        
+
         // Extraer datos del objeto book si existe, o usar datos directos
         const bookData = b.book || b;
-        
+
         // Solo si no tenemos un ID válido, generar uno basado en título/autor
         if (!bookId && bookData.title && bookData.author) {
             bookId = `/books/${encodeURIComponent(bookData.title)}-${encodeURIComponent(bookData.author)}`;
         }
-        
-        console.log('[addFavorite] Debug:', { 
-            userId, 
-            rawBookId, 
-            bookId, 
-            title: bookData.title, 
+
+        console.log('[addFavorite] Debug:', {
+            userId,
+            rawBookId,
+            bookId,
+            title: bookData.title,
             author: bookData.author,
             description: bookData.description,
             book: b.book,
-            fullBody: b
+            fullBody: b,
         });
-        
+
         const img = coverFrom(bookData); // incluye NYT (book_image) e ISBN
 
         // guarda/actualiza el libro con la portada en imageUrl (según tu esquema)
@@ -112,18 +119,18 @@ exports.addFavorite = async (req, res) => {
             update: {
                 title: bookData.title ?? undefined,
                 author: bookData.author ?? undefined,
-                imageUrl: img ?? undefined,          // 👈 AQUÍ guardamos la URL
+                imageUrl: img ?? undefined, // 👈 AQUÍ guardamos la URL
                 description: bookData.description ?? undefined,
-                rating: bookData.rating ? String(bookData.rating) : undefined,  // Convertir a string
+                rating: bookData.rating ? String(bookData.rating) : undefined, // Convertir a string
                 category: bookData.category ?? undefined,
             },
             create: {
                 id: bookId,
                 title: bookData.title || 'Libro sin título',
                 author: bookData.author || 'Autor desconocido',
-                imageUrl: img || null,               // 👈 y al crear también
+                imageUrl: img || null, // 👈 y al crear también
                 description: bookData.description ?? null,
-                rating: bookData.rating ? String(bookData.rating) : null,      // Convertir a string
+                rating: bookData.rating ? String(bookData.rating) : null, // Convertir a string
                 category: bookData.category ?? null,
             },
         });
@@ -145,9 +152,9 @@ exports.removeFavorite = async (req, res) => {
     const userId = Number(req.params.userId);
     const rawBookId = req.params.bookId ?? req.query.bookId ?? req.body.bookId ?? req.body.id;
     const bookId = normBookId(rawBookId);
-    
+
     // console.log('[removeFavorite] Debug:', { userId, rawBookId, bookId });
-    
+
     if (!Number.isInteger(userId) || !bookId) {
         console.error('[removeFavorite] Invalid params:', { userId, bookId, rawBookId });
         return res.status(400).json({ error: 'Parámetros inválidos' });
@@ -159,7 +166,7 @@ exports.removeFavorite = async (req, res) => {
             bookId,
             bookId.startsWith('/') ? bookId.substring(1) : '/' + bookId,
             rawBookId,
-            rawBookId.startsWith('/') ? rawBookId.substring(1) : '/' + rawBookId
+            rawBookId.startsWith('/') ? rawBookId.substring(1) : '/' + rawBookId,
         ].filter((id, index, arr) => arr.indexOf(id) === index); // Eliminar duplicados
 
         // console.log('[removeFavorite] Trying IDs:', possibleIds);
@@ -169,7 +176,7 @@ exports.removeFavorite = async (req, res) => {
 
         for (const id of possibleIds) {
             existingFavorite = await prisma.favorite.findUnique({
-                where: { userId_bookId: { userId, bookId: id } }
+                where: { userId_bookId: { userId, bookId: id } },
             });
             if (existingFavorite) {
                 correctBookId = id;
@@ -182,7 +189,9 @@ exports.removeFavorite = async (req, res) => {
             return res.status(200).json({ success: true, message: 'Favorito ya eliminado' });
         }
 
-        await prisma.favorite.delete({ where: { userId_bookId: { userId, bookId: correctBookId } } });
+        await prisma.favorite.delete({
+            where: { userId_bookId: { userId, bookId: correctBookId } },
+        });
         // console.log('[removeFavorite] Successfully removed:', { userId, bookId: correctBookId });
         res.status(200).json({ success: true });
     } catch (err) {

@@ -4,11 +4,11 @@ const userSeeder = require('../services/userSeeder');
 exports.seedUsers = async (req, res) => {
     try {
         const { count = 20 } = req.body;
-        
+
         if (count > 100) {
-            return res.status(400).json({ 
-                error: 'Count too high', 
-                message: 'Maximum 100 users can be seeded at once' 
+            return res.status(400).json({
+                error: 'Count too high',
+                message: 'Maximum 100 users can be seeded at once',
             });
         }
 
@@ -16,9 +16,9 @@ exports.seedUsers = async (req, res) => {
         res.json(result);
     } catch (error) {
         console.error('Error seeding users:', error);
-        res.status(500).json({ 
-            error: 'SEED_ERROR', 
-            message: 'Error seeding users' 
+        res.status(500).json({
+            error: 'SEED_ERROR',
+            message: 'Error seeding users',
         });
     }
 };
@@ -31,9 +31,9 @@ exports.getRandomUsers = async (req, res) => {
         res.json(users);
     } catch (error) {
         console.error('Error getting random users:', error);
-        res.status(500).json({ 
-            error: 'RANDOM_USERS_ERROR', 
-            message: 'Error getting random users' 
+        res.status(500).json({
+            error: 'RANDOM_USERS_ERROR',
+            message: 'Error getting random users',
         });
     }
 };
@@ -45,9 +45,9 @@ exports.clearTestUsers = async (req, res) => {
         res.json(result);
     } catch (error) {
         console.error('Error clearing test users:', error);
-        res.status(500).json({ 
-            error: 'CLEAR_ERROR', 
-            message: 'Error clearing test users' 
+        res.status(500).json({
+            error: 'CLEAR_ERROR',
+            message: 'Error clearing test users',
         });
     }
 };
@@ -56,15 +56,15 @@ exports.clearTestUsers = async (req, res) => {
 exports.getSeedStatus = async (req, res) => {
     try {
         const hasUsers = await userSeeder.hasExistingUsers();
-        res.json({ 
+        res.json({
             hasUsers,
-            message: hasUsers ? 'Users exist in database' : 'No users found'
+            message: hasUsers ? 'Users exist in database' : 'No users found',
         });
     } catch (error) {
         console.error('Error getting seed status:', error);
-        res.status(500).json({ 
-            error: 'STATUS_ERROR', 
-            message: 'Error getting seed status' 
+        res.status(500).json({
+            error: 'STATUS_ERROR',
+            message: 'Error getting seed status',
         });
     }
 };

@@ -28,7 +28,7 @@ class UserSeeder {
             bio: this.generateBio(apiUser),
             avatar: apiUser.picture.large,
             createdAt: new Date(),
-            updatedAt: new Date()
+            updatedAt: new Date(),
         };
     }
 
@@ -51,7 +51,7 @@ class UserSeeder {
             `Lector apasionado de ${this.getRandomGenre()}. Siempre buscando nuevas historias.`,
             `Amante de los libros desde pequeño. Mi género favorito es ${this.getRandomGenre()}.`,
             `📚 Lector voraz de ${this.getRandomGenre()}. ¡Compartamos lecturas!`,
-            `En mi tiempo libre leo ${this.getRandomGenre()}. ¿Alguna recomendación?`
+            `En mi tiempo libre leo ${this.getRandomGenre()}. ¿Alguna recomendación?`,
         ];
         return bios[Math.floor(Math.random() * bios.length)];
     }
@@ -59,9 +59,18 @@ class UserSeeder {
     // Géneros literarios aleatorios
     getRandomGenre() {
         const genres = [
-            'fantasía', 'ciencia ficción', 'misterio', 'romance', 
-            'thriller', 'histórica', 'biografías', 'poesía',
-            'aventura', 'terror', 'drama', 'comedia'
+            'fantasía',
+            'ciencia ficción',
+            'misterio',
+            'romance',
+            'thriller',
+            'histórica',
+            'biografías',
+            'poesía',
+            'aventura',
+            'terror',
+            'drama',
+            'comedia',
         ];
         return genres[Math.floor(Math.random() * genres.length)];
     }
@@ -91,7 +100,7 @@ class UserSeeder {
             console.log(`✅ Fetched ${apiUsers.length} users from API`);
 
             // Transformar datos
-            const usersToCreate = apiUsers.map(apiUser => this.transformUserData(apiUser));
+            const usersToCreate = apiUsers.map((apiUser) => this.transformUserData(apiUser));
 
             // Verificar usernames únicos
             const uniqueUsers = await this.ensureUniqueUsernames(usersToCreate);
@@ -99,17 +108,16 @@ class UserSeeder {
             // Crear usuarios en la BD
             const createdUsers = await prisma.user.createMany({
                 data: uniqueUsers,
-                skipDuplicates: true
+                skipDuplicates: true,
             });
 
             console.log(`✅ Successfully created ${createdUsers.count} users in database`);
-            
+
             return {
                 message: 'Users seeded successfully',
                 count: createdUsers.count,
-                users: uniqueUsers.slice(0, 5) // Devolver primeros 5 como ejemplo
+                users: uniqueUsers.slice(0, 5), // Devolver primeros 5 como ejemplo
             };
-
         } catch (error) {
             console.error('❌ Error seeding users:', error);
             throw error;
@@ -119,30 +127,30 @@ class UserSeeder {
     // Asegurar usernames únicos
     async ensureUniqueUsernames(users) {
         const uniqueUsers = [];
-        
+
         for (const user of users) {
             let username = user.username;
             let counter = 1;
-            
+
             // Verificar si el username ya existe
             while (await this.usernameExists(username)) {
                 username = `${user.username}${counter}`;
                 counter++;
             }
-            
+
             uniqueUsers.push({
                 ...user,
-                username
+                username,
             });
         }
-        
+
         return uniqueUsers;
     }
 
     // Verificar si un username existe
     async usernameExists(username) {
         const existing = await prisma.user.findUnique({
-            where: { username }
+            where: { username },
         });
         return !!existing;
     }
@@ -158,7 +166,7 @@ class UserSeeder {
             const users = await prisma.user.findMany({
                 take: count,
                 orderBy: {
-                    id: 'desc'
+                    id: 'desc',
                 },
                 select: {
                     id: true,
@@ -169,21 +177,20 @@ class UserSeeder {
                     _count: {
                         select: {
                             followers: true,
-                            following: true
-                        }
-                    }
-                }
+                            following: true,
+                        },
+                    },
+                },
             });
 
-            return users.map(user => ({
+            return users.map((user) => ({
                 id: user.id,
                 name: user.name || user.username,
                 avatar: user.avatar || `https://i.pravatar.cc/150?u=${user.id}`,
                 isFollowing: false,
                 followersCount: user._count.followers,
-                followingCount: user._count.following
+                followingCount: user._count.following,
             }));
-
         } catch (error) {
             console.error('❌ Error getting random users from DB:', error);
             return [];
@@ -196,8 +203,8 @@ class UserSeeder {
             console.log('🧹 Clearing test users...');
             const deleted = await prisma.user.deleteMany({
                 where: {
-                    password: 'temp123' // Solo eliminar usuarios de prueba
-                }
+                    password: 'temp123', // Solo eliminar usuarios de prueba
+                },
             });
             console.log(`✅ Deleted ${deleted.count} test users`);
             return { message: 'Test users cleared', count: deleted.count };

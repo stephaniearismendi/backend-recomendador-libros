@@ -13,7 +13,6 @@ router.delete('/posts/:postId', auth, socialCtrl.deletePost);
 router.post('/posts/:postId/like', auth, socialCtrl.toggleLike);
 router.post('/posts/:postId/comments', auth, socialCtrl.addComment);
 
-
 /* --------- Clubs (lista y unirse) --------- */
 router.get('/clubs', socialCtrl.getClubs);
 router.post('/clubs/:clubId/toggle', auth, socialCtrl.toggleJoinClub);
