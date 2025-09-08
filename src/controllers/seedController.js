@@ -1,6 +1,5 @@
 const userSeeder = require('../services/userSeeder');
 
-// Seeder de usuarios
 exports.seedUsers = async (req, res) => {
     try {
         const { count = 20 } = req.body;
@@ -23,7 +22,6 @@ exports.seedUsers = async (req, res) => {
     }
 };
 
-// Obtener usuarios aleatorios de la BD
 exports.getRandomUsers = async (req, res) => {
     try {
         const { count = 10 } = req.query;
@@ -38,7 +36,6 @@ exports.getRandomUsers = async (req, res) => {
     }
 };
 
-// Limpiar usuarios de prueba
 exports.clearTestUsers = async (req, res) => {
     try {
         const result = await userSeeder.clearTestUsers();
@@ -52,7 +49,6 @@ exports.clearTestUsers = async (req, res) => {
     }
 };
 
-// Verificar estado del seeding
 exports.getSeedStatus = async (req, res) => {
     try {
         const hasUsers = await userSeeder.hasExistingUsers();

@@ -1,10 +1,5 @@
-/**
- * Controller layer exports
- * Centralized exports for all controller classes
- */
-
-const UserController = require('./UserController');
-const BookController = require('./BookController');
+const UserController = require('./userController');
+const BookController = require('./bookController');
 
 module.exports = {
     UserController,

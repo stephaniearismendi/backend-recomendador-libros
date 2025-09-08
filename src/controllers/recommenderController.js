@@ -1,21 +1,14 @@
-// Recomendador con filtro de popularidad + diversidad (MMR) basado en favoritos.
-// Endpoint intacto: POST /recommendations/personal  -> Array<BookFront>
 
 const prisma = require('../database/prisma');
 const { AX } = require('../core/http');
 
-// utilitarios opcionales si existen en tu proyecto
-// let _firstAuthorName = (a) => (Array.isArray(a) ? a[0] : a || '');
 let toFrontendBook = null;
 try {
     const utils = require('../utils/utils.js');
-    // if (utils?.firstAuthorName) _firstAuthorName = utils.firstAuthorName;
     if (utils?.toFrontendBook) toFrontendBook = utils.toFrontendBook;
 } catch {
-    /* noop */
 }
 
-/* ───────────────── Config ───────────────── */
 
 const TIMEOUT_MS = 9000;
 const LIMIT_FINAL = 24;
@@ -23,28 +16,25 @@ const MAX_SEED_FAVS = 8;
 const MAX_SUBJECTS_PER_SEED = 6;
 const MAX_AUTHORS_PER_SEED = 2;
 
-// filtros de “calidad” (paso 1 estricto; si no llegamos, relajamos)
 const HARD_MIN_EDITIONS = 8;
 const HARD_MIN_RATINGS = 25;
 const SOFT_MIN_EDITIONS = 3;
 const SOFT_MIN_RATINGS = 5;
 
-// pesos de scoring
-const W_SIM = 6.0; // similitud con favoritos (Jaccard)
-const W_AUTHOR = 2.5; // boost si viene de autor semilla
-const W_POP_ED = 1.6; // popularidad por nº ediciones (log)
-const W_POP_AVG = 2.0; // media de rating (0..5)
-const W_POP_CNT = 2.0; // nº votos (log10)
+const W_SIM = 6.0;
+const W_AUTHOR = 2.5;
+const W_POP_ED = 1.6;
+const W_POP_AVG = 2.0;
+const W_POP_CNT = 2.0;
 const MMR_LAMBDA = 0.72;
 
-/* ──────────────── Cachés ──────────────── */
 
 const cache = (global.__RECS_CACHE3__ ||= {
-    SUBJECT: new Map(), // subject -> { t, v }
-    AUTHOR: new Map(), // /authors/OL..A -> { t, v }
-    WORK: new Map(), // /works/OL..W   -> { t, v }
-    RAT: new Map(), // /works/OL..W/ratings.json -> { t, v }
-    RES: new Map(), // resultado final -> { t, v }
+    SUBJECT: new Map(),
+    AUTHOR: new Map(),
+    WORK: new Map(),
+    RAT: new Map(),
+    RES: new Map(),
 });
 const TTL = {
     SUBJECT: 6 * 60 * 60 * 1000,
@@ -64,7 +54,6 @@ const getC = (b, k, ttl) => {
 };
 const setC = (b, k, v) => (b.set(k, { t: Date.now(), v }), v);
 
-/* ──────────────── Utils ──────────────── */
 
 const norm = (s) =>
     (s || '')
@@ -119,9 +108,7 @@ function seededShuffle(arr, seedStr = '') {
     return out;
 }
 
-/* ─────────────── Open Library fetchers ─────────────── */
 
-// /works/OL...W.json
 async function getWorkMeta(workKey) {
     const k = normId(workKey);
     const hit = getC(cache.WORK, k, TTL.WORK);
@@ -139,7 +126,6 @@ async function getWorkMeta(workKey) {
     }
 }
 
-// /authors/OL...A/works.json
 async function getAuthorWorks(authorKey, limit = 60) {
     const k = normId(authorKey);
     const hit = getC(cache.AUTHOR, k, TTL.AUTHOR);
@@ -170,7 +156,6 @@ async function getAuthorWorks(authorKey, limit = 60) {
     }
 }
 
-// /subjects/<subject>.json
 async function getSubjectWorks(subject, limit = 60) {
     const key = subject.toLowerCase();
     const hit = getC(cache.SUBJECT, key, TTL.SUBJECT);
@@ -204,7 +189,6 @@ async function getSubjectWorks(subject, limit = 60) {
     }
 }
 
-// /works/OL...W/ratings.json  → { summary: { average, count } }
 async function getWorkRatings(workKey) {
     const k = normId(workKey);
     const hit = getC(cache.RAT, k, TTL.RAT);
@@ -221,13 +205,12 @@ async function getWorkRatings(workKey) {
     }
 }
 
-/* ─────────────── Seeds desde favoritos ─────────────── */
 
 async function loadFavoriteSeeds(userId) {
     const favs = await prisma.favorite.findMany({
         where: { userId: Number(userId) },
         include: { book: true },
-        take: MAX_SEED_FAVS, // Favorite no tiene createdAt
+        take: MAX_SEED_FAVS,
     });
 
     const favIds = new Set(favs.map((f) => normId(f.bookId)));
@@ -260,7 +243,6 @@ async function loadFavoriteSeeds(userId) {
     return { favIds, favPairs, subjects, authors, favTokenSets };
 }
 
-/* ─────────────── Pool + popularidad ─────────────── */
 
 async function buildCandidatePool(seeds) {
     const tasks = [
@@ -272,7 +254,6 @@ async function buildCandidatePool(seeds) {
     for (const r of settled)
         if (r.status === 'fulfilled' && Array.isArray(r.value)) pool.push(...r.value);
 
-    // de-dup por id
     const seen = new Set();
     const out = [];
     for (const b of pool) {
@@ -285,7 +266,6 @@ async function buildCandidatePool(seeds) {
 }
 
 async function hydrateRatings(pool, max = 120) {
-    // enriquece con ratings para un subconjunto (capped)
     const slice = pool.slice(0, max);
     await Promise.allSettled(
         slice.map(async (b) => {
@@ -302,16 +282,14 @@ async function hydrateRatings(pool, max = 120) {
 
 function filterByPopularity(pool, { minEditions, minRatings }) {
     return pool
-        .filter((b) => b.image) // portada obligatoria
+        .filter((b) => b.image)
         .filter(
             (b) => (b.edition_count || 0) >= minEditions || (b.ratings_count || 0) >= minRatings
         );
 }
 
-/* ─────────────── Scoring + diversidad ─────────────── */
 
 function scoreAndDiversify(cands, seeds) {
-    // tokens precalculados
     const tok = cands.map((b) => {
         const t = b.title || '';
         const a = b.author || (Array.isArray(b.authors) ? b.authors[0] : '');
@@ -324,9 +302,9 @@ function scoreAndDiversify(cands, seeds) {
         for (const fav of seeds.favTokenSets) sim = Math.max(sim, jaccard(tok[i], fav));
         const authorBoost = b._origin === 'author' ? 1 : 0;
 
-        const popEd = Math.min(3, Math.log2(1 + (b.edition_count || 0))) / 3; // 0..1
+        const popEd = Math.min(3, Math.log2(1 + (b.edition_count || 0))) / 3;
         const popAvg = (typeof b.ratings_average === 'number' ? b.ratings_average : 0) / 5;
-        const popCnt = Math.min(1, Math.log10(1 + (b.ratings_count || 0)) / 3); // 0..~1
+        const popCnt = Math.min(1, Math.log10(1 + (b.ratings_count || 0)) / 3);
 
         const score =
             W_SIM * sim +
@@ -363,7 +341,6 @@ function scoreAndDiversify(cands, seeds) {
     return sel;
 }
 
-/* ─────────────── Mapeo seguro a frontend ─────────────── */
 
 function safeToFrontend(b) {
     if (toFrontendBook) {
@@ -388,7 +365,6 @@ function safeToFrontend(b) {
     };
 }
 
-/* ─────────────── Handler ─────────────── */
 
 exports.getPersonalRecommendations = async (req, res) => {
     try {
@@ -398,7 +374,6 @@ exports.getPersonalRecommendations = async (req, res) => {
                 (userId ? `${userId}-${new Date().toISOString().slice(0, 10)}` : 'anon')
         );
 
-        // clave de caché estable por usuario+favoritos+seed
         const favShort = await prisma.favorite.findMany({
             where: { userId: Number(userId) },
             select: { bookId: true },
@@ -408,7 +383,6 @@ exports.getPersonalRecommendations = async (req, res) => {
         const cached = getC(cache.RES, key, TTL.RES);
         if (cached) return res.json(cached);
 
-        // si no hay favoritos -> subjects “seguros”
         const hasFavs = favShort.length > 0;
         const seeds = hasFavs
             ? await loadFavoriteSeeds(userId)
@@ -420,10 +394,8 @@ exports.getPersonalRecommendations = async (req, res) => {
                 favTokenSets: [new Set()],
             };
 
-        // candidatos
         let pool = await buildCandidatePool(seeds);
 
-        // excluye favoritos
         pool = pool.filter((b) => {
             const idN = normId(b.id || b.key || b.bookId || '');
             if (idN && seeds.favIds.has(idN)) return false;
@@ -431,10 +403,8 @@ exports.getPersonalRecommendations = async (req, res) => {
             return true;
         });
 
-        // hidrata popularidad (ratings) para un subconjunto
         await hydrateRatings(pool, 120);
 
-        // filtro de calidad (dos pasadas)
         let filtered = filterByPopularity(pool, {
             minEditions: HARD_MIN_EDITIONS,
             minRatings: HARD_MIN_RATINGS,
@@ -444,12 +414,11 @@ exports.getPersonalRecommendations = async (req, res) => {
                 minEditions: SOFT_MIN_EDITIONS,
                 minRatings: SOFT_MIN_RATINGS,
             });
-            if (filtered.length < LIMIT_FINAL) filtered = pool.filter((b) => b.image); // última relajación: solo que tenga portada
+            if (filtered.length < LIMIT_FINAL) filtered = pool.filter((b) => b.image);
         }
 
-        // ranking + diversidad
         let ranked = scoreAndDiversify(filtered, seeds);
-        ranked = seededShuffle(ranked, seed); // variación determinista
+        ranked = seededShuffle(ranked, seed);
 
         const payload = ranked.slice(0, LIMIT_FINAL).map(safeToFrontend);
         setC(cache.RES, key, payload);

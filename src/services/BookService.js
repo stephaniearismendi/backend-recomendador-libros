@@ -1,21 +1,11 @@
 const BookRepository = require('../repositories/BookRepository');
 const AppError = require('../errors/AppError');
 
-/**
- * Book Service - Handles all book-related business logic
- * Encapsulates book operations and business rules
- */
 class BookService {
     constructor() {
         this.bookRepository = new BookRepository();
     }
 
-    /**
-     * Get book by ID
-     * @param {string} bookId - The book ID
-     * @returns {Promise<object>} The book data
-     * @throws {AppError} If book not found
-     */
     async getBookById(bookId) {
         if (!bookId) {
             throw new AppError('ID del libro requerido', 400);
@@ -199,12 +189,10 @@ class BookService {
     async createBook(bookData) {
         const { id, title, author, imageUrl, description, rating, category } = bookData;
 
-        // Validate required fields
         if (!id || !title || !author) {
             throw new AppError('ID, título y autor son requeridos', 400);
         }
 
-        // Check if book already exists
         const existingBook = await this.bookRepository.findById(id);
         if (existingBook) {
             throw new AppError('El libro ya existe', 409);
@@ -238,13 +226,11 @@ class BookService {
             throw new AppError('ID del libro requerido', 400);
         }
 
-        // Check if book exists
         const existingBook = await this.bookRepository.findById(bookId);
         if (!existingBook) {
             throw new AppError('Libro no encontrado', 404);
         }
 
-        // Prepare update data (only include defined fields)
         const allowedFields = ['title', 'author', 'imageUrl', 'description', 'rating', 'category'];
         const filteredData = {};
         
@@ -273,7 +259,6 @@ class BookService {
             throw new AppError('ID del libro requerido', 400);
         }
 
-        // Check if book exists
         const existingBook = await this.bookRepository.findById(bookId);
         if (!existingBook) {
             throw new AppError('Libro no encontrado', 404);

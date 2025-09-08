@@ -31,7 +31,6 @@ exports.register = async (req, res) => {
         const exists = await prisma.user.findUnique({ where: { email } });
         if (exists) return res.status(409).json({ error: MSG.EMAIL_USED });
 
-        // Generar username único basado en el email
         const baseUsername = email
             .split('@')[0]
             .toLowerCase()
@@ -39,7 +38,6 @@ exports.register = async (req, res) => {
         let username = baseUsername;
         let counter = 1;
 
-        // Verificar que el username sea único
         while (await prisma.user.findUnique({ where: { username } })) {
             username = `${baseUsername}${counter}`;
             counter++;
@@ -94,7 +92,6 @@ exports.getUserIdFromToken = async (req, res) => {
     }
 };
 
-// Obtener perfil completo del usuario
 exports.getProfile = async (req, res) => {
     try {
         const { userId } = req.user;
@@ -134,13 +131,11 @@ exports.getProfile = async (req, res) => {
     }
 };
 
-// Actualizar perfil del usuario
 exports.updateProfile = async (req, res) => {
     try {
         const { userId } = req.user;
         const { name, bio, username } = req.body;
 
-        // Verificar si el username ya existe (si se está cambiando)
         if (username) {
             const existingUser = await prisma.user.findFirst({
                 where: {
@@ -181,7 +176,6 @@ exports.updateProfile = async (req, res) => {
     }
 };
 
-// Actualizar avatar del usuario
 exports.updateAvatar = async (req, res) => {
     try {
         const { userId } = req.user;
@@ -211,18 +205,15 @@ exports.updateAvatar = async (req, res) => {
     }
 };
 
-// Cambiar contraseña del usuario
 exports.changePassword = async (req, res) => {
     try {
         const { userId } = req.user;
         const { currentPassword, newPassword } = req.body;
 
-        // Validar que se proporcionen ambas contraseñas
         if (!currentPassword || !newPassword) {
             return res.status(400).json({ error: MSG.PASSWORD_REQUIRED });
         }
 
-        // Validar que la nueva contraseña tenga al menos 6 caracteres
         if (newPassword.length < 6) {
             return res
                 .status(400)

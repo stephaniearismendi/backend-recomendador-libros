@@ -6,7 +6,6 @@ class UserSeeder {
         this.randomUserApiUrl = 'https://randomuser.me/api';
     }
 
-    // Obtener usuarios aleatorios de la API externa
     async fetchRandomUsers(count = 10) {
         try {
             console.log(`🌐 Fetching ${count} random users from API...`);
@@ -18,12 +17,11 @@ class UserSeeder {
         }
     }
 
-    // Transformar datos de la API a formato de nuestra BD
     transformUserData(apiUser) {
         return {
             username: this.generateUsername(apiUser.name.first, apiUser.name.last),
             email: apiUser.email,
-            password: this.generatePassword(), // Contraseña temporal
+            password: this.generatePassword(),
             name: `${apiUser.name.first} ${apiUser.name.last}`,
             bio: this.generateBio(apiUser),
             avatar: apiUser.picture.large,
@@ -32,19 +30,16 @@ class UserSeeder {
         };
     }
 
-    // Generar username único
     generateUsername(firstName, lastName) {
         const base = `${firstName.toLowerCase()}${lastName.toLowerCase()}`;
         const random = Math.floor(Math.random() * 1000);
         return `${base}${random}`;
     }
 
-    // Generar contraseña temporal
     generatePassword() {
-        return 'temp123'; // En producción, usar bcrypt
+        return 'temp123';
     }
 
-    // Generar biografía basada en datos del usuario
     generateBio(apiUser) {
         const bios = [
             `Hola! Soy ${apiUser.name.first} y me encanta leer libros de ${this.getRandomGenre()}.`,

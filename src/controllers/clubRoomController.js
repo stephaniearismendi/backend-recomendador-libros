@@ -1,4 +1,3 @@
-// src/controllers/clubRoomController.js
 const prisma = require('../database/prisma');
 
 function meFromReq(req) {
@@ -8,7 +7,6 @@ function meFromReq(req) {
     return { id, name, avatar };
 }
 
-// GET /social/clubs/:clubId
 exports.getClub = async (req, res) => {
     const { clubId } = req.params;
     const club = await prisma.club.findUnique({
@@ -24,7 +22,6 @@ exports.getClub = async (req, res) => {
     });
 };
 
-// GET /social/clubs/:clubId/chapters
 exports.listChapters = async (req, res) => {
     const { clubId } = req.params;
 
@@ -37,7 +34,6 @@ exports.listChapters = async (req, res) => {
         },
     });
 
-    // Si no hay capítulos, crear aleatoriamente 8..18
     if (chapters.length === 0) {
         const n = 8 + Math.floor(Math.random() * 11);
         await prisma.$transaction(
@@ -65,7 +61,6 @@ exports.listChapters = async (req, res) => {
     res.json(data);
 };
 
-// POST /social/clubs/:clubId/chapters  { chapter, title? }
 exports.createChapter = async (req, res) => {
     const { clubId } = req.params;
     const chapter = parseInt(req.body?.chapter, 10);
@@ -74,14 +69,13 @@ exports.createChapter = async (req, res) => {
         return res.status(400).json({ error: 'INVALID_CHAPTER' });
     }
     const up = await prisma.clubChapter.upsert({
-        where: { clubId_chapter: { clubId, chapter } }, // por @@unique([clubId, chapter])
+        where: { clubId_chapter: { clubId, chapter } },
         update: { title },
         create: { clubId, chapter, title },
     });
     res.status(201).json({ id: up.id, chapter: up.chapter, title: up.title });
 };
 
-// GET /social/clubs/:clubId/chapters/:chapter/comments?before&limit
 exports.listComments = async (req, res) => {
     const { clubId, chapter } = req.params;
     const limit = Math.min(Math.max(parseInt(req.query.limit || '30', 10), 1), 100);
@@ -91,7 +85,7 @@ exports.listComments = async (req, res) => {
         where: { clubId_chapter: { clubId, chapter: parseInt(chapter, 10) } },
         select: { id: true },
     });
-    if (!ch) return res.json([]); // sin capítulo -> sin comentarios
+    if (!ch) return res.json([]);
 
     const where = { chapterId: ch.id };
     if (before) where.createdAt = { lt: before };
@@ -103,7 +97,6 @@ exports.listComments = async (req, res) => {
         include: { user: true },
     });
 
-    // Transformar para mantener compatibilidad con el frontend
     const comments = rows.reverse().map((comment) => ({
         id: comment.id,
         userId: comment.userId,
@@ -116,7 +109,6 @@ exports.listComments = async (req, res) => {
     res.json(comments);
 };
 
-// POST /social/clubs/:clubId/chapters/:chapter/messages  { text }
 exports.postMessage = async (req, res) => {
     const { id: userId } = meFromReq(req);
     if (!userId) return res.status(401).json({ error: 'UNAUTHENTICATED' });
@@ -125,7 +117,6 @@ exports.postMessage = async (req, res) => {
     const text = (req.body?.text || '').trim();
     if (!text) return res.status(400).json({ error: 'EMPTY' });
 
-    // asegúrate de que el capítulo existe
     const ch = await prisma.clubChapter.upsert({
         where: { clubId_chapter: { clubId, chapter: parseInt(chapter, 10) } },
         update: {},
@@ -148,6 +139,5 @@ exports.postMessage = async (req, res) => {
     });
 };
 
-// Alias for test compatibility
 exports.getChapterComments = exports.listComments;
 exports.addChapterComment = exports.postMessage;

@@ -13,7 +13,6 @@ exports.getFeed = async (req, res) => {
 
         let posts;
         if (meId) {
-            // Feed personalizado: solo posts de usuarios que sigue
             posts = await prisma.post.findMany({
                 where: {
                     user: {
@@ -35,7 +34,6 @@ exports.getFeed = async (req, res) => {
                 take: 50,
             });
         } else {
-            // Feed público: todos los posts
             posts = await prisma.post.findMany({
                 orderBy: { createdAt: 'desc' },
                 include: {
@@ -102,19 +100,15 @@ exports.createPost = async (req, res) => {
         const { text, bookId, book } = req.body || {};
         let finalBookId = bookId;
 
-        // Si se proporciona un objeto book completo, crear o encontrar el libro
         if (book && book.title && book.author) {
-            // Usar el ID original del libro si está disponible, o generar uno basado en título/autor
             const bookIdToUse =
                 book.id ||
                 `/books/${encodeURIComponent(book.title)}-${encodeURIComponent(book.author)}`;
 
-            // Buscar si el libro ya existe
             let existingBook = await prisma.book.findUnique({
                 where: { id: bookIdToUse },
             });
 
-            // Si no existe, crearlo
             if (!existingBook) {
                 existingBook = await prisma.book.create({
                     data: {
@@ -123,16 +117,15 @@ exports.createPost = async (req, res) => {
                         author: book.author,
                         imageUrl: book.cover || null,
                         description: book.description || null,
-                        rating: book.rating ? String(book.rating) : null, // Convertir a string
+                        rating: book.rating ? String(book.rating) : null,
                         category: book.category || null,
                     },
                 });
             } else {
-                // Si existe pero le faltan campos, actualizarlo
                 const updateData = {};
                 if (book.description && !existingBook.description)
                     updateData.description = book.description;
-                if (book.rating && !existingBook.rating) updateData.rating = String(book.rating); // Convertir a string
+                if (book.rating && !existingBook.rating) updateData.rating = String(book.rating);
                 if (book.category && !existingBook.category) updateData.category = book.category;
                 if (book.cover && !existingBook.imageUrl) updateData.imageUrl = book.cover;
 
@@ -147,7 +140,6 @@ exports.createPost = async (req, res) => {
             finalBookId = existingBook.id;
         }
 
-        // Si se proporciona un bookId directo, verificar que el libro existe
         if (finalBookId && !book) {
             const book = await prisma.book.findUnique({
                 where: { id: finalBookId },
@@ -169,7 +161,6 @@ exports.createPost = async (req, res) => {
             },
         });
 
-        // Devolver el post completo con la información del libro
         const response = {
             id: created.id,
             user: {

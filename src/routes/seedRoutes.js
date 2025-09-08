@@ -2,7 +2,6 @@ const express = require('express');
 const router = express.Router();
 const seedCtrl = require('../controllers/seedController');
 
-// Rutas de seeding (solo para desarrollo)
 router.post('/users', seedCtrl.seedUsers);
 router.get('/users/random', seedCtrl.getRandomUsers);
 router.delete('/users/test', seedCtrl.clearTestUsers);

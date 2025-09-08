@@ -43,7 +43,6 @@ if (config.logging.httpLog) {
     });
 }
 
-// Import routes
 const userRoutes = require('./routes/userRoutes');
 const bookRoutes = require('./routes/bookRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
@@ -51,10 +50,8 @@ const recommenderRoutes = require('./routes/recommenderRoutes');
 const socialRoutes = require('./routes/socialRoutes');
 const seedRoutes = require('./routes/seedRoutes');
 
-// Import error handling
 const errorHandler = require('./errors/errorHandler');
 
-// Routes
 app.use('/users', userRoutes);
 app.use('/books', bookRoutes);
 app.use('/favorites', favoriteRoutes);
@@ -62,7 +59,6 @@ app.use('/recommendations', recommenderRoutes);
 app.use('/social', socialRoutes);
 app.use('/seed', seedRoutes);
 
-// Health check endpoint
 app.get('/health', (req, res) => {
     res.status(200).json({
         status: 'OK',
@@ -71,14 +67,12 @@ app.get('/health', (req, res) => {
     });
 });
 
-// 404 handler for undefined routes
 app.use((req, res, next) => {
     const err = new Error(`Can't find ${req.originalUrl} on this server!`);
     err.statusCode = 404;
     next(err);
 });
 
-// Global error handling middleware
 app.use(errorHandler);
 
 module.exports = app;

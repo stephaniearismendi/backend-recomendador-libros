@@ -1,18 +1,6 @@
 const AppError = require('../errors/AppError');
 
-/**
- * Validation utility class for request data validation
- * Provides methods to validate request body, query parameters, and route parameters
- */
 class Validator {
-    /**
-     * Validate request data against a schema
-     * @param {object} data - The data to validate
-     * @param {object} schema - The validation schema
-     * @param {string} context - The validation context (for error messages)
-     * @returns {object} The validated and sanitized data
-     * @throws {AppError} If validation fails
-     */
     static validate(data, schema, context = 'data') {
         const errors = [];
         const validatedData = {};
@@ -37,67 +25,34 @@ class Validator {
         return validatedData;
     }
 
-    /**
-     * Validate request body
-     * @param {object} body - The request body
-     * @param {object} schema - The validation schema
-     * @returns {object} The validated body data
-     * @throws {AppError} If validation fails
-     */
     static validateBody(body, schema) {
         return this.validate(body, schema, 'request body');
     }
 
-    /**
-     * Validate query parameters
-     * @param {object} query - The query parameters
-     * @param {object} schema - The validation schema
-     * @returns {object} The validated query data
-     * @throws {AppError} If validation fails
-     */
     static validateQuery(query, schema) {
         return this.validate(query, schema, 'query parameters');
     }
 
-    /**
-     * Validate route parameters
-     * @param {object} params - The route parameters
-     * @param {object} schema - The validation schema
-     * @returns {object} The validated params data
-     * @throws {AppError} If validation fails
-     */
     static validateParams(params, schema) {
         return this.validate(params, schema, 'route parameters');
     }
 
-    /**
-     * Validate a single field against its rules
-     * @private
-     * @param {string} field - The field name
-     * @param {any} value - The field value
-     * @param {object} rules - The validation rules
-     * @returns {Array} Array of error messages
-     */
     static _validateField(field, value, rules) {
         const errors = [];
 
-        // Check if required field is missing
         if (rules.required && (value === undefined || value === null || value === '')) {
             errors.push(`${field} es requerido`);
             return errors;
         }
 
-        // Skip validation if field is not required and not provided
         if (!rules.required && (value === undefined || value === null || value === '')) {
             return errors;
         }
 
-        // Type validation
         if (rules.type && !this._validateType(value, rules.type)) {
             errors.push(`${field} debe ser de tipo ${rules.type}`);
         }
 
-        // String validations
         if (rules.type === 'string' && typeof value === 'string') {
             if (rules.minLength && value.length < rules.minLength) {
                 errors.push(`${field} debe tener al menos ${rules.minLength} caracteres`);
@@ -110,7 +65,6 @@ class Validator {
             }
         }
 
-        // Number validations
         if (rules.type === 'number') {
             const numValue = Number(value);
             if (isNaN(numValue)) {
@@ -125,7 +79,6 @@ class Validator {
             }
         }
 
-        // Custom message override
         if (errors.length > 0 && rules.message) {
             errors[0] = rules.message;
         }
@@ -133,13 +86,6 @@ class Validator {
         return errors;
     }
 
-    /**
-     * Validate data type
-     * @private
-     * @param {any} value - The value to validate
-     * @param {string} expectedType - The expected type
-     * @returns {boolean} True if type is valid
-     */
     static _validateType(value, expectedType) {
         switch (expectedType) {
             case 'string':
@@ -157,19 +103,10 @@ class Validator {
         }
     }
 
-    /**
-     * Sanitize value based on rules
-     * @private
-     * @param {any} value - The value to sanitize
-     * @param {object} rules - The validation rules
-     * @returns {any} The sanitized value
-     */
     static _sanitizeValue(value, rules) {
         if (rules.type === 'string' && typeof value === 'string') {
-            // Trim whitespace
             value = value.trim();
             
-            // Convert to lowercase if specified
             if (rules.toLowerCase) {
                 value = value.toLowerCase();
             }
@@ -188,11 +125,6 @@ class Validator {
         return value;
     }
 
-    /**
-     * Validate pagination parameters
-     * @param {object} query - The query parameters
-     * @returns {object} The validated pagination data
-     */
     static validatePagination(query) {
         const schema = {
             limit: {
@@ -213,13 +145,6 @@ class Validator {
         return this.validateQuery(query, schema);
     }
 
-    /**
-     * Validate ID parameter
-     * @param {string|number} id - The ID to validate
-     * @param {string} type - The type of ID ('string' or 'number')
-     * @returns {string|number} The validated ID
-     * @throws {AppError} If ID is invalid
-     */
     static validateId(id, type = 'string') {
         if (!id) {
             throw new AppError('ID es requerido', 400);

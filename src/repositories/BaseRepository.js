@@ -1,21 +1,11 @@
-const { PrismaClient } = require('@prisma/client');
+const prisma = require('../database/prisma');
 
-/**
- * Base Repository class that provides common database operations
- * Implements the Repository pattern for data access abstraction
- */
 class BaseRepository {
     constructor(model) {
         this.model = model;
-        this.prisma = new PrismaClient();
+        this.prisma = prisma;
     }
 
-    /**
-     * Find a record by ID
-     * @param {number|string} id - The ID to search for
-     * @param {object} options - Additional options for the query
-     * @returns {Promise<object|null>} The found record or null
-     */
     async findById(id, options = {}) {
         try {
             return await this.prisma[this.model].findUnique({

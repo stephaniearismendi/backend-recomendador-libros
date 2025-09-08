@@ -21,7 +21,6 @@ const config = {
     },
 };
 
-// Validar configuración requerida
 const requiredEnvVars = ['JWT_SECRET', 'DATABASE_URL'];
 const missingEnvVars = requiredEnvVars.filter(envVar => !process.env[envVar]);
 

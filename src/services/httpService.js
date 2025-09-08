@@ -3,7 +3,7 @@ const { AX } = require('../core/http');
 class HttpService {
     constructor() {
         this.cache = new Map();
-        this.cacheTimeout = 5 * 60 * 1000; // 5 minutos
+        this.cacheTimeout = 5 * 60 * 1000;
     }
 
     async getWithCache(url, options = {}, retries = 2) {
@@ -17,7 +17,7 @@ class HttpService {
         for (let attempt = 0; attempt <= retries; attempt++) {
             try {
                 const response = await AX.get(url, {
-                    timeout: 15000, // Increased from 5000ms to 15000ms (15 seconds)
+                    timeout: 15000,
                     ...options,
                 });
 
@@ -38,10 +38,8 @@ class HttpService {
                 
                 if (isTimeoutError) {
                     console.warn(`HTTP request timeout for ${url}, attempt ${attempt + 1}/${retries + 1}, retrying...`);
-                    // Wait before retrying (exponential backoff)
                     await new Promise(resolve => setTimeout(resolve, Math.pow(2, attempt) * 1000));
                 } else {
-                    // For non-timeout errors, don't retry
                     console.warn(`HTTP request failed for ${url}:`, error.message);
                     throw error;
                 }

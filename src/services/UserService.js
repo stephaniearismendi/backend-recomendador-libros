@@ -4,45 +4,27 @@ const UserRepository = require('../repositories/UserRepository');
 const config = require('../config');
 const AppError = require('../errors/AppError');
 
-/**
- * User Service - Handles all user-related business logic
- * Encapsulates user operations and business rules
- */
 class UserService {
     constructor() {
         this.userRepository = new UserRepository();
     }
 
-    /**
-     * Register a new user
-     * @param {object} userData - The user data to register
-     * @param {string} userData.email - User email
-     * @param {string} userData.password - User password
-     * @param {string} [userData.name] - User name (optional)
-     * @returns {Promise<object>} The registration result
-     * @throws {AppError} If email already exists or validation fails
-     */
     async register(userData) {
         const { email, password, name = '' } = userData;
 
-        // Validate required fields
         if (!email || !password) {
             throw new AppError('Email y password requeridos', 400);
         }
 
-        // Check if email already exists
         const emailExists = await this.userRepository.emailExists(email);
         if (emailExists) {
             throw new AppError('Email ya registrado', 409);
         }
 
-        // Generate unique username
         const username = await this.userRepository.generateUniqueUsername(email);
 
-        // Hash password
         const hashedPassword = await bcrypt.hash(password, 10);
 
-        // Create user
         const user = await this.userRepository.create({
             email,
             password: hashedPassword,
@@ -72,24 +54,20 @@ class UserService {
     async login(credentials) {
         const { email, password } = credentials;
 
-        // Validate required fields
         if (!email || !password) {
             throw new AppError('Credenciales inválidas', 400);
         }
 
-        // Find user for authentication
         const user = await this.userRepository.findForAuthentication(email);
         if (!user) {
             throw new AppError('Credenciales inválidas', 401);
         }
 
-        // Verify password
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
             throw new AppError('Credenciales inválidas', 401);
         }
 
-        // Generate JWT token
         const token = jwt.sign(
             { userId: user.id, name: user.name || '' },
             config.jwt.secret,
@@ -131,7 +109,6 @@ class UserService {
     async updateProfile(userId, profileData) {
         const { name, bio, username } = profileData;
 
-        // Check if username is being changed and if it already exists
         if (username) {
             const existingUser = await this.userRepository.findByUsername(username);
             if (existingUser && existingUser.id !== userId) {
@@ -139,7 +116,6 @@ class UserService {
             }
         }
 
-        // Prepare update data (only include defined fields)
         const updateData = {};
         if (name !== undefined) updateData.name = name;
         if (bio !== undefined) updateData.bio = bio;
@@ -191,17 +167,14 @@ class UserService {
     async changePassword(userId, passwordData) {
         const { currentPassword, newPassword } = passwordData;
 
-        // Validate required fields
         if (!currentPassword || !newPassword) {
             throw new AppError('Contraseña actual y nueva contraseña requeridas', 400);
         }
 
-        // Validate new password length
         if (newPassword.length < 6) {
             throw new AppError('La nueva contraseña debe tener al menos 6 caracteres', 400);
         }
 
-        // Get user with password
         const user = await this.userRepository.findById(userId, {
             select: { id: true, password: true },
         });
@@ -216,10 +189,8 @@ class UserService {
             throw new AppError('La contraseña actual es incorrecta', 401);
         }
 
-        // Hash new password
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
 
-        // Update password
         await this.userRepository.updatePassword(userId, hashedNewPassword);
 
         return { message: 'Contraseña actualizada' };
@@ -233,12 +204,10 @@ class UserService {
      * @throws {AppError} If password is invalid or user not found
      */
     async deleteAccount(userId, password) {
-        // Validate password
         if (!password) {
             throw new AppError('Contraseña requerida para eliminar cuenta', 400);
         }
 
-        // Get user with password
         const user = await this.userRepository.findById(userId, {
             select: { id: true, password: true },
         });
@@ -247,7 +216,6 @@ class UserService {
             throw new AppError('Usuario no encontrado', 404);
         }
 
-        // Verify password
         const isPasswordValid = await bcrypt.compare(password, user.password);
         if (!isPasswordValid) {
             throw new AppError('Credenciales inválidas', 401);

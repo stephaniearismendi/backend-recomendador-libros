@@ -12,7 +12,6 @@ const {
 
 const { getFavorites, addFavorite, removeFavorite } = require('../controllers/favoriteController');
 
-// Public routes
 router.get('/search', searchBooks);
 router.get('/popular', getPopularBooks);
 router.get('/genre', getBooksByGenre);

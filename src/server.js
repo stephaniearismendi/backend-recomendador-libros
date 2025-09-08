@@ -6,7 +6,6 @@ const server = app.listen(config.port, () => {
     logger.info({ port: config.port, env: config.nodeEnv }, `Servidor levantado en el puerto ${config.port}`);
 });
 
-// Graceful shutdown
 process.on('SIGTERM', () => {
     logger.info('SIGTERM received. Shutting down gracefully...');
     server.close(() => {

@@ -18,7 +18,6 @@ router.post('/login', login);
 router.get('/id', getUserIdByEmail);
 router.get('/me', authMiddleware, getUserIdFromToken);
 
-// Rutas de perfil (requieren autenticación)
 router.get('/profile', authMiddleware, getProfile);
 router.put('/profile', authMiddleware, updateProfile);
 router.put('/avatar', authMiddleware, updateAvatar);

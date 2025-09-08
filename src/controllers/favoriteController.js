@@ -1,6 +1,5 @@
 const prisma = require('../database/prisma');
 
-// -------- helpers ----------
 const safeDecode = (s) => {
     try {
         return decodeURIComponent(String(s ?? ''));
@@ -11,11 +10,9 @@ const safeDecode = (s) => {
 const normBookId = (raw) => {
     const d = safeDecode(raw).trim();
     if (!d) return '';
-    // Si ya tiene barra inicial, mantenerla; si no, agregarla
     return d.startsWith('/') ? d : '/' + d;
 };
 
-// ISBN en distintos formatos (NYT incluido)
 function firstIsbn(b = {}) {
     if (Array.isArray(b.isbn) && b.isbn[0]) return String(b.isbn[0]);
     if (typeof b.primary_isbn13 === 'string' && b.primary_isbn13) return b.primary_isbn13;
@@ -28,9 +25,7 @@ function firstIsbn(b = {}) {
     return null;
 }
 
-// saca portada de los campos habituales + NYT + OpenLibrary (sin llamadas HTTP)
 function coverFrom(b = {}) {
-    // Prioridad: image directo, luego imageUrl, luego book_image (NYT)
     const direct = b.image || b.imageUrl || b.book_image || b.coverUrl || b.cover;
     if (direct) return direct;
 
@@ -42,7 +37,6 @@ function coverFrom(b = {}) {
     return null;
 }
 
-// -------- endpoints ----------
 exports.getFavorites = async (req, res) => {
     const userId = Number(req.params.userId);
     if (!Number.isInteger(userId)) return res.status(400).json({ error: 'userId inválido' });
@@ -53,7 +47,6 @@ exports.getFavorites = async (req, res) => {
             include: { book: true },
         });
 
-        // asegura que siempre devolvemos una URL de portada
         const out = favorites
             .map(({ book }) => {
                 if (!book) {
@@ -64,7 +57,7 @@ exports.getFavorites = async (req, res) => {
                 return {
                     ...book,
                     imageUrl: img,
-                    image: img, // por compat con componentes que miran "image"
+                    image: img,
                     coverUrl: img,
                     cover: img,
                 };
@@ -89,13 +82,10 @@ exports.addFavorite = async (req, res) => {
     try {
         const b = req.body || {};
 
-        // Usar el ID original del libro (no normalizar)
         let bookId = rawBookId;
 
-        // Extraer datos del objeto book si existe, o usar datos directos
         const bookData = b.book || b;
 
-        // Solo si no tenemos un ID válido, generar uno basado en título/autor
         if (!bookId && bookData.title && bookData.author) {
             bookId = `/books/${encodeURIComponent(bookData.title)}-${encodeURIComponent(bookData.author)}`;
         }
@@ -111,26 +101,25 @@ exports.addFavorite = async (req, res) => {
             fullBody: b,
         });
 
-        const img = coverFrom(bookData); // incluye NYT (book_image) e ISBN
+        const img = coverFrom(bookData);    
 
-        // guarda/actualiza el libro con la portada en imageUrl (según tu esquema)
         await prisma.book.upsert({
             where: { id: bookId },
             update: {
                 title: bookData.title ?? undefined,
                 author: bookData.author ?? undefined,
-                imageUrl: img ?? undefined, // 👈 AQUÍ guardamos la URL
+                imageUrl: img ?? undefined,
                 description: bookData.description ?? undefined,
-                rating: bookData.rating ? String(bookData.rating) : undefined, // Convertir a string
+                rating: bookData.rating ? String(bookData.rating) : undefined,
                 category: bookData.category ?? undefined,
             },
             create: {
                 id: bookId,
                 title: bookData.title || 'Libro sin título',
                 author: bookData.author || 'Autor desconocido',
-                imageUrl: img || null, // 👈 y al crear también
+                imageUrl: img || null,
                 description: bookData.description ?? null,
-                rating: bookData.rating ? String(bookData.rating) : null, // Convertir a string
+                rating: bookData.rating ? String(bookData.rating) : null,
                 category: bookData.category ?? null,
             },
         });
@@ -153,7 +142,6 @@ exports.removeFavorite = async (req, res) => {
     const rawBookId = req.params.bookId ?? req.query.bookId ?? req.body.bookId ?? req.body.id;
     const bookId = normBookId(rawBookId);
 
-    // console.log('[removeFavorite] Debug:', { userId, rawBookId, bookId });
 
     if (!Number.isInteger(userId) || !bookId) {
         console.error('[removeFavorite] Invalid params:', { userId, bookId, rawBookId });
@@ -161,15 +149,13 @@ exports.removeFavorite = async (req, res) => {
     }
 
     try {
-        // Buscar el favorito con diferentes variaciones del ID
         const possibleIds = [
             bookId,
             bookId.startsWith('/') ? bookId.substring(1) : '/' + bookId,
             rawBookId,
             rawBookId.startsWith('/') ? rawBookId.substring(1) : '/' + rawBookId,
-        ].filter((id, index, arr) => arr.indexOf(id) === index); // Eliminar duplicados
+        ].filter((id, index, arr) => arr.indexOf(id) === index);
 
-        // console.log('[removeFavorite] Trying IDs:', possibleIds);
 
         let existingFavorite = null;
         let correctBookId = null;
@@ -192,7 +178,6 @@ exports.removeFavorite = async (req, res) => {
         await prisma.favorite.delete({
             where: { userId_bookId: { userId, bookId: correctBookId } },
         });
-        // console.log('[removeFavorite] Successfully removed:', { userId, bookId: correctBookId });
         res.status(200).json({ success: true });
     } catch (err) {
         console.error('[removeFavorite] Error:', err);

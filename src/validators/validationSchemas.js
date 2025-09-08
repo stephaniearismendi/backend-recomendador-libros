@@ -1,10 +1,5 @@
-/**
- * Validation schemas for request validation
- * Centralized validation rules for API endpoints
- */
 
 const validationSchemas = {
-    // User validation schemas
     user: {
         register: {
             email: {
@@ -91,7 +86,6 @@ const validationSchemas = {
         },
     },
 
-    // Book validation schemas
     book: {
         create: {
             id: {
@@ -214,7 +208,6 @@ const validationSchemas = {
         },
     },
 
-    // Query parameter validation
     query: {
         pagination: {
             limit: {

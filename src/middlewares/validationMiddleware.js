@@ -1,16 +1,7 @@
 const Validator = require('../validators/validator');
 const validationSchemas = require('../validators/validationSchemas');
 
-/**
- * Middleware factory for request validation
- * Creates validation middleware for different types of requests
- */
 class ValidationMiddleware {
-    /**
-     * Create validation middleware for request body
-     * @param {string} schemaPath - The path to the validation schema (e.g., 'user.register')
-     * @returns {Function} Express middleware function
-     */
     static validateBody(schemaPath) {
         return (req, res, next) => {
             try {
@@ -111,7 +102,6 @@ class ValidationMiddleware {
     }
 }
 
-// Convenience functions for common validations
 const validateUserRegister = ValidationMiddleware.validateBody('user.register');
 const validateUserLogin = ValidationMiddleware.validateBody('user.login');
 const validateUserUpdateProfile = ValidationMiddleware.validateBody('user.updateProfile');
@@ -131,18 +121,15 @@ const validateBookId = ValidationMiddleware.validateId('id', 'string');
 
 module.exports = {
     ValidationMiddleware,
-    // User validations
     validateUserRegister,
     validateUserLogin,
     validateUserUpdateProfile,
     validateUserUpdateAvatar,
     validateUserChangePassword,
     validateUserDeleteAccount,
-    // Book validations
     validateBookCreate,
     validateBookUpdate,
     validateBookSearch,
-    // Common validations
     validateEmailQuery,
     validatePagination,
     validateUserId,

@@ -15,33 +15,10 @@ const ERRORS = {
     BOOK_NOT_FOUND: 'Libro no encontrado',
 };
 
-/*
-const _getBasicBookInfo = async (w) => {
-    // Optimización: no buscar rating para mayor velocidad
-    const description = extractDescription(w);
-    const image = w.cover_i
-        ? `https://covers.openlibrary.org/b/id/${w.cover_i}-L.jpg`
-        : w.cover_edition_key
-            ? `https://covers.openlibrary.org/b/olid/${w.cover_edition_key}-L.jpg`
-            : null;
-
-    return {
-        id: w.key,
-        title: w.title || 'Sin título',
-        author: w.authors?.[0]?.name || 'Desconocido',
-        description: description || '',
-        image,
-        rating: null, // Sin rating para mayor velocidad
-        publishedDate: w.first_publish_year ? new Date(w.first_publish_year, 0, 1) : null,
-    };
-};
-*/
-
 const mapOpenLibraryBooks = async (works = [], subject = null) => {
     const mapped = [];
     for (const w of works) {
         try {
-            // Procesamiento directo sin llamadas HTTP para mayor velocidad
             const image = w.cover_i
                 ? `https://covers.openlibrary.org/b/id/${w.cover_i}-L.jpg`
                 : w.cover_edition_key
@@ -92,11 +69,9 @@ const extractDescription = (work) => {
 };
 
 const extractGenre = (work, subject = null) => {
-    // Prioridad: subject específico > subjects del work > genre > category
     if (subject) return subject;
 
     if (work.subjects && Array.isArray(work.subjects)) {
-        // Tomar el primer subject que no sea muy genérico
         const genericSubjects = ['fiction', 'nonfiction', 'books', 'literature'];
         const validSubject = work.subjects.find(
             (s) => s && !genericSubjects.includes(s.toLowerCase())
@@ -114,10 +89,9 @@ const extractGenre = (work, subject = null) => {
 exports.getBookDetails = async (req, res) => {
     const { key } = req.params;
     const isOpenLibraryId = key?.startsWith('/works/') || key?.startsWith('OL');
-    const isISBN = /^\d{10,13}$/.test(key); // ISBN de 10 o 13 dígitos
+    const isISBN = /^\d{10,13}$/.test(key); 
 
     try {
-        // Primero intentar obtener de la base de datos
         try {
             const book = await prisma.book.findUnique({
                 where: { id: key },
@@ -134,7 +108,6 @@ exports.getBookDetails = async (req, res) => {
             console.warn('Could not fetch book from database:', dbError.message);
         }
 
-        // Si es OpenLibrary ID, usar OpenLibrary
         if (isOpenLibraryId) {
             const cleanKey = key.replace(/^\/?works\//, '');
             const workRes = await AX.get(`https://openlibrary.org/works/${cleanKey}.json`);
@@ -151,7 +124,6 @@ exports.getBookDetails = async (req, res) => {
             });
         }
 
-        // Si es ISBN, intentar obtener de NYT primero
         if (isISBN) {
             try {
                 const nyData = await AX.get(
@@ -174,7 +146,6 @@ exports.getBookDetails = async (req, res) => {
                 console.warn('Could not fetch from NYT:', nytError.message);
             }
 
-            // Si no está en NYT, intentar Google Books
             try {
                 const googleRes = await AX.get('https://www.googleapis.com/books/v1/volumes', {
                     params: { q: `isbn:${key}`, key: process.env.GOOGLE_BOOKS_API_KEY },
@@ -205,7 +176,6 @@ exports.getBookDetails = async (req, res) => {
             }
         }
 
-        // Si no se encuentra en ningún lado
         return res.json({
             title: 'Libro no encontrado',
             description: 'No se pudo obtener información del libro',
@@ -270,7 +240,6 @@ exports.getPopularBooks = async (_req, res) => {
         );
         works = Array.from(new Map(works.map((w) => [w.key, w])).values());
 
-        // Filtrar solo libros con portada disponible
         works = works.filter(
             (w) =>
                 w.title && w.authors && w.authors.length > 0 && (w.cover_i || w.cover_edition_key)
@@ -320,7 +289,6 @@ exports.getAdaptedBooks = async (_req, res) => {
 
 exports.getNYTBooks = async (_req, res) => {
     try {
-        // Verificar si las API keys están disponibles
         if (!process.env.NYT_KEY || !process.env.GOOGLE_BOOKS_API_KEY) {
             console.warn('NYT or Google Books API keys not configured, returning empty array');
             return res.json([]);
@@ -328,12 +296,10 @@ exports.getNYTBooks = async (_req, res) => {
 
         const nyData = await httpService.getNYTBooks();
 
-        // Crear libros directamente desde los datos del NYT con traducción de descripciones
         const books = await Promise.all(
             nyData.results.books.slice(0, 15).map(async (b) => {
                 const isbn = b.primary_isbn13;
 
-                // Traducir descripción si existe
                 let description = 'Descripción no disponible';
                 if (b.description && b.description.trim() !== '') {
                     try {
@@ -344,7 +310,7 @@ exports.getNYTBooks = async (_req, res) => {
                             `Could not translate description for ${b.title}:`,
                             error.message
                         );
-                        description = b.description; // Usar original si falla la traducción
+                        description = b.description;
                     }
                 }
 
@@ -355,15 +321,14 @@ exports.getNYTBooks = async (_req, res) => {
                     description,
                     image:
                         b.book_image ||
-                        (isbn ? `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg` : null), // Usar imagen del NYT primero
+                        (isbn ? `https://covers.openlibrary.org/b/isbn/${isbn}-L.jpg` : null),
                     rating: `#${b.rank} NYT (${b.weeks_on_list} semanas)`,
                     publishedDate: b.published_date || null,
-                    category: 'bestseller', // NYT books son bestsellers
+                    category: 'bestseller',
                 };
             })
         );
 
-        // Filtrar libros que no tengan ni descripción ni portada
         const validBooks = books.filter((book) => {
             const hasDescription =
                 book.description &&
@@ -371,11 +336,9 @@ exports.getNYTBooks = async (_req, res) => {
                 book.description !== 'Descripción no disponible';
             const hasImage = book.image && book.image.trim() !== '';
 
-            // Solo incluir libros que tengan al menos descripción O portada
             return hasDescription || hasImage;
         });
 
-        // Guardar libros NYT en la base de datos para que estén disponibles en getBookDetails
         await Promise.all(
             validBooks.map(async (book) => {
                 try {
@@ -459,12 +422,11 @@ exports.removeFavorite = async (req, res) => {
     }
 };
 
-// Obtener datos completos de un libro por ID
 exports.getBookById = async (req, res) => {
     try {
         const { bookId } = req.params;
         if (!bookId) {
-            return res.status(400).json({ error: 'ID de libro requerido' });
+            return res.status(400).json({ error: 'Book ID required' });
         }
 
         const book = await prisma.book.findUnique({
@@ -507,6 +469,6 @@ exports.getBookById = async (req, res) => {
         });
     } catch (error) {
         console.error('Error getting book by ID:', error);
-        res.status(500).json({ error: 'Error interno del servidor' });
+        res.status(500).json({ error: 'Internal server error' });
     }
 };
