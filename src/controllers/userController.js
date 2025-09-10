@@ -4,30 +4,30 @@ const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 
 const MSG = {
-    BAD_CRED: 'Credenciales inválidas',
-    EMAIL_USED: 'Email ya registrado',
-    USER_CREATED: 'Usuario creado',
-    USER_NOT_FOUND: 'Usuario no encontrado',
-    REG_ERR: 'Error en el registro',
-    LOGIN_ERR: 'Error al iniciar sesión',
-    GET_ME_ERR: 'Error al obtener ID de usuario',
-    PROFILE_UPDATED: 'Perfil actualizado',
-    PROFILE_ERR: 'Error al actualizar perfil',
-    GET_PROFILE_ERR: 'Error al obtener perfil',
-    PASSWORD_CHANGED: 'Contraseña actualizada',
-    PASSWORD_ERR: 'Error al cambiar contraseña',
-    OLD_PASSWORD_INVALID: 'La contraseña actual es incorrecta',
-    PASSWORD_REQUIRED: 'Contraseña actual y nueva contraseña requeridas',
-    USER_DELETED: 'Usuario eliminado',
-    DELETE_ERR: 'Error al eliminar usuario',
-    DELETE_PASSWORD_REQUIRED: 'Contraseña requerida para eliminar cuenta',
+    BAD_CRED: 'Invalid credentials',
+    EMAIL_USED: 'Email already registered',
+    USER_CREATED: 'User created',
+    USER_NOT_FOUND: 'User not found',
+    REG_ERR: 'Registration error',
+    LOGIN_ERR: 'Login error',
+    GET_ME_ERR: 'Error getting user ID',
+    PROFILE_UPDATED: 'Profile updated',
+    PROFILE_ERR: 'Error updating profile',
+    GET_PROFILE_ERR: 'Error getting profile',
+    PASSWORD_CHANGED: 'Password updated',
+    PASSWORD_ERR: 'Error changing password',
+    OLD_PASSWORD_INVALID: 'Current password is incorrect',
+    PASSWORD_REQUIRED: 'Current and new password required',
+    USER_DELETED: 'User deleted',
+    DELETE_ERR: 'Error deleting user',
+    DELETE_PASSWORD_REQUIRED: 'Password required to delete account',
 };
 
 exports.register = async (req, res) => {
     try {
         const { email, password, name = '' } = req.body || {};
         if (!email || !password)
-            return res.status(400).json({ error: 'Email y password requeridos' });
+            return res.status(400).json({ error: 'Email and password required' });
         const exists = await prisma.user.findUnique({ where: { email } });
         if (exists) return res.status(409).json({ error: MSG.EMAIL_USED });
 
@@ -95,7 +95,6 @@ exports.getUserIdFromToken = async (req, res) => {
 exports.getProfile = async (req, res) => {
     try {
         const { userId } = req.user;
-        console.log('[getProfile] userId:', userId);
 
         const user = await prisma.user.findUnique({
             where: { id: userId },
@@ -107,10 +106,12 @@ exports.getProfile = async (req, res) => {
                 bio: true,
                 avatar: true,
                 createdAt: true,
+                stats: true,
                 _count: {
                     select: {
-                        reviews: true,
                         favorites: true,
+                        sessions: true,
+                        posts: true,
                         following: true,
                         followers: true,
                     },
@@ -119,12 +120,31 @@ exports.getProfile = async (req, res) => {
         });
 
         if (!user) {
-            console.log('[getProfile] Usuario no encontrado');
             return res.status(404).json({ error: MSG.USER_NOT_FOUND });
         }
 
-        console.log('[getProfile] Usuario encontrado con _count:', user._count);
-        res.json({ user });
+        const currentYear = new Date().getFullYear();
+        const currentChallenge = await prisma.readingChallenge.findUnique({
+            where: {
+                userId_year: {
+                    userId,
+                    year: currentYear
+                }
+            }
+        });
+
+        const userWithGamification = {
+            ...user,
+            currentChallenge: currentChallenge ? {
+                year: currentChallenge.year,
+                goal: currentChallenge.goal,
+                completed: currentChallenge.completed,
+                isCompleted: currentChallenge.isCompleted,
+                progress: Math.round((currentChallenge.completed / currentChallenge.goal) * 100)
+            } : null
+        };
+
+        res.json({ user: userWithGamification });
     } catch (error) {
         console.error('Error getting profile:', error);
         res.status(500).json({ error: MSG.GET_PROFILE_ERR });
@@ -144,7 +164,7 @@ exports.updateProfile = async (req, res) => {
                 },
             });
             if (existingUser) {
-                return res.status(409).json({ error: 'El nombre de usuario ya está en uso' });
+                return res.status(409).json({ error: 'Username already in use' });
             }
         }
 
@@ -182,7 +202,7 @@ exports.updateAvatar = async (req, res) => {
         const { avatar } = req.body;
 
         if (!avatar) {
-            return res.status(400).json({ error: 'URL del avatar requerida' });
+            return res.status(400).json({ error: 'Avatar URL required' });
         }
 
         const updatedUser = await prisma.user.update({
@@ -196,12 +216,12 @@ exports.updateAvatar = async (req, res) => {
         });
 
         res.json({
-            message: 'Avatar actualizado',
+            message: 'Avatar updated',
             user: updatedUser,
         });
     } catch (error) {
         console.error('Error updating avatar:', error);
-        res.status(500).json({ error: 'Error al actualizar avatar' });
+        res.status(500).json({ error: 'Error updating avatar' });
     }
 };
 
@@ -217,10 +237,9 @@ exports.changePassword = async (req, res) => {
         if (newPassword.length < 6) {
             return res
                 .status(400)
-                .json({ error: 'La nueva contraseña debe tener al menos 6 caracteres' });
+                .json({ error: 'New password must be at least 6 characters' });
         }
 
-        // Obtener el usuario actual
         const user = await prisma.user.findUnique({
             where: { id: userId },
             select: { id: true, password: true },
@@ -230,16 +249,13 @@ exports.changePassword = async (req, res) => {
             return res.status(404).json({ error: MSG.USER_NOT_FOUND });
         }
 
-        // Verificar que la contraseña actual sea correcta
         const isCurrentPasswordValid = await bcrypt.compare(currentPassword, user.password);
         if (!isCurrentPasswordValid) {
             return res.status(401).json({ error: MSG.OLD_PASSWORD_INVALID });
         }
 
-        // Encriptar la nueva contraseña
         const hashedNewPassword = await bcrypt.hash(newPassword, 10);
 
-        // Actualizar la contraseña en la base de datos
         await prisma.user.update({
             where: { id: userId },
             data: { password: hashedNewPassword },
@@ -252,42 +268,80 @@ exports.changePassword = async (req, res) => {
     }
 };
 
-// Eliminar usuario
 exports.deleteAccount = async (req, res) => {
     try {
         const { userId } = req.user;
-        const { password } = req.body;
 
-        // Validar que se proporcione la contraseña
-        if (!password) {
-            return res.status(400).json({ error: MSG.DELETE_PASSWORD_REQUIRED });
-        }
-
-        // Obtener el usuario actual
         const user = await prisma.user.findUnique({
             where: { id: userId },
-            select: { id: true, password: true },
+            select: { id: true },
         });
 
         if (!user) {
             return res.status(404).json({ error: MSG.USER_NOT_FOUND });
         }
 
-        // Verificar que la contraseña sea correcta
-        const isPasswordValid = await bcrypt.compare(password, user.password);
-        if (!isPasswordValid) {
-            return res.status(401).json({ error: MSG.BAD_CRED });
-        }
+        await prisma.$transaction(async (tx) => {
+            await tx.favorite.deleteMany({
+                where: { userId }
+            });
 
-        // Eliminar el usuario (esto también eliminará automáticamente todos los datos relacionados
-        // debido a las restricciones de clave foránea configuradas en Prisma)
-        await prisma.user.delete({
-            where: { id: userId },
+            await tx.readingSession.deleteMany({
+                where: { userId }
+            });
+
+            await tx.post.deleteMany({
+                where: { userId }
+            });
+
+            await tx.postComment.deleteMany({
+                where: { userId }
+            });
+
+            await tx.like.deleteMany({
+                where: { userId }
+            });
+
+            await tx.chapterComment.deleteMany({
+                where: { userId }
+            });
+
+            await tx.story.deleteMany({
+                where: { userId }
+            });
+
+            await tx.follow.deleteMany({
+                where: { 
+                    OR: [
+                        { followerId: userId },
+                        { followingId: userId }
+                    ]
+                }
+            });
+
+            await tx.userAchievement.deleteMany({
+                where: { userId }
+            });
+
+            await tx.userStats.deleteMany({
+                where: { userId }
+            });
+
+            await tx.readingChallenge.deleteMany({
+                where: { userId }
+            });
+
+            await tx.clubMember.deleteMany({
+                where: { userId }
+            });
+
+            await tx.user.delete({
+                where: { id: userId }
+            });
         });
 
         res.json({ message: MSG.USER_DELETED });
     } catch (error) {
-        console.error('Error deleting user:', error);
         res.status(500).json({ error: MSG.DELETE_ERR });
     }
 };

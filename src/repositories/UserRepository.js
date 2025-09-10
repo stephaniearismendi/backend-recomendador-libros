@@ -64,7 +64,6 @@ class UserRepository extends BaseRepository {
                 createdAt: true,
                 _count: {
                     select: {
-                        reviews: true,
                         favorites: true,
                         following: true,
                         followers: true,

@@ -77,7 +77,7 @@ async function translateEsFast(text) {
     if (cached) return cached;
 
     try {
-        const { data } = await AX.post('https://api-free.deepl.com/v2/translate', null, {
+        const { data } = await AX.post('https://api.deepl.com/v2/translate', null, {
             params: { auth_key: DEEPL_KEY, text, target_lang: 'ES' },
             timeout: 8000,
         });

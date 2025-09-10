@@ -3,7 +3,7 @@ const prisma = require('../database/prisma');
 function userFromReq(req) {
     const uid = req.user?.userId || req.body?.userId || 0;
     const name = req.user?.name || 'Usuario';
-    const avatar = `https://i.pravatar.cc/150?u=${uid || 'guest'}`;
+    const avatar = req.user?.avatar || `https://cdn.pixabay.com/photo/2023/02/18/11/00/icon-7797704_640.png`;
     return { id: Number(uid), name, avatar };
 }
 
@@ -249,23 +249,7 @@ exports.addComment = async (req, res) => {
 };
 
 exports.getClubs = async (_req, res) => {
-    let clubs = await prisma.club.findMany({ include: { members: true } });
-    if (clubs.length === 0) {
-        const seed = [
-            { name: 'Club Austen', cover: 'https://covers.openlibrary.org/b/id/10409424-M.jpg' },
-            {
-                name: 'Misterio de Domingo',
-                cover: 'https://covers.openlibrary.org/b/id/11153226-M.jpg',
-            },
-            { name: 'Fantasía Chill', cover: 'https://covers.openlibrary.org/b/id/9251956-M.jpg' },
-            {
-                name: 'Clásicos Breves',
-                cover: 'https://covers.openlibrary.org/b/id/12091267-M.jpg',
-            },
-        ];
-        await prisma.$transaction(seed.map((s) => prisma.club.create({ data: s })));
-        clubs = await prisma.club.findMany({ include: { members: true } });
-    }
+    const clubs = await prisma.club.findMany({ include: { members: true } });
     res.json(
         clubs.map((c) => ({ id: c.id, name: c.name, cover: c.cover, members: c.members.length }))
     );
@@ -289,14 +273,14 @@ exports.getSuggestions = async (req, res) => {
 
         const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 50);
 
-        // Obtener usuarios que ya sigue
+        // Get users that the user follows
         const following = await prisma.follow.findMany({
             where: { followerId: meId },
             select: { followingId: true },
         });
         const excludeIds = [meId, ...following.map((f) => f.followingId)];
 
-        // Obtener usuarios sugeridos de la BD
+        // Get users suggested from the DB
         const users = await prisma.user.findMany({
             where: { id: { notIn: excludeIds } },
             select: {
@@ -316,7 +300,7 @@ exports.getSuggestions = async (req, res) => {
             orderBy: { id: 'desc' },
         });
 
-        // Solo devolver usuarios reales de la base de datos, sin fallback
+
         if (users.length === 0) {
             return res.json([]);
         }
@@ -335,7 +319,6 @@ exports.getSuggestions = async (req, res) => {
         res.json(payload);
     } catch (err) {
         console.error('[getSuggestions]', err);
-        // En caso de error, devolver array vacío en lugar de fallback
         res.json([]);
     }
 };
@@ -380,20 +363,19 @@ exports.getSuggestionsNoAuth = async (req, res) => {
     }
 };
 
-// Endpoint temporal con filtrado pero sin autenticación
 exports.getSuggestionsTemp = async (req, res) => {
     try {
-        const meId = parseInt(req.query.meId || '1', 10); // Default al usuario 1 para testing
+        const meId = parseInt(req.query.meId || '1', 10);
         const limit = Math.min(Math.max(parseInt(req.query.limit || '12', 10), 1), 50);
 
-        // Obtener usuarios que ya sigue
+        // Get users that the user follows
         const following = await prisma.follow.findMany({
             where: { followerId: meId },
             select: { followingId: true },
         });
+        // Exclude the user and the users that the user follows
         const excludeIds = [meId, ...following.map((f) => f.followingId)];
 
-        // Obtener usuarios sugeridos de la BD
         const users = await prisma.user.findMany({
             where: { id: { notIn: excludeIds } },
             select: {
@@ -431,7 +413,7 @@ exports.getSuggestionsTemp = async (req, res) => {
     }
 };
 
-// Endpoint simple para obtener todos los usuarios
+// Endpoint simple to get all users
 exports.getAllUsers = async (req, res) => {
     try {
         const users = await prisma.user.findMany({
@@ -463,7 +445,6 @@ exports.getAllUsers = async (req, res) => {
     }
 };
 
-// Obtener seguidores de un usuario
 exports.getFollowers = async (req, res) => {
     try {
         const userId = parseInt(req.params.userId, 10);
@@ -471,7 +452,7 @@ exports.getFollowers = async (req, res) => {
             return res.status(400).json({ error: 'INVALID_USER_ID' });
         }
 
-        // Obtener los seguidores del usuario
+        // Get the followers of the user
         const followers = await prisma.follow.findMany({
             where: { followingId: userId },
             include: {
@@ -504,7 +485,7 @@ exports.getFollowers = async (req, res) => {
     }
 };
 
-// Obtener usuarios que sigue un usuario
+// Get users that the user follows
 exports.getFollowing = async (req, res) => {
     try {
         const userId = parseInt(req.params.userId, 10);
@@ -512,7 +493,7 @@ exports.getFollowing = async (req, res) => {
             return res.status(400).json({ error: 'INVALID_USER_ID' });
         }
 
-        // Obtener los usuarios que sigue
+        // Get the users that the user follows
         const following = await prisma.follow.findMany({
             where: { followerId: userId },
             include: {
@@ -715,7 +696,6 @@ exports.createClub = async (req, res) => {
                 )
             );
 
-            // Generar comentarios aleatorios para los capítulos creados
             await generateRandomChapterComments(createdChapters);
         }
 
@@ -726,21 +706,18 @@ exports.createClub = async (req, res) => {
     }
 };
 
-// Función para generar comentarios aleatorios en capítulos
 async function generateRandomChapterComments(chapters) {
     try {
-        // Obtener usuarios aleatorios para los comentarios
         const users = await prisma.user.findMany({
             select: { id: true },
             take: 20,
         });
 
         if (users.length === 0) {
-            console.log('No hay usuarios para generar comentarios');
+            console.log('No users available to generate comments');
             return;
         }
 
-        // Comentarios de ejemplo para capítulos de club
         const sampleComments = [
             '¡Qué capítulo tan interesante! Me encanta cómo se desarrolla la trama.',
             'Este capítulo me dejó con muchas preguntas. ¿Qué opinan ustedes?',
@@ -764,9 +741,8 @@ async function generateRandomChapterComments(chapters) {
             'Este capítulo me dejó con ganas de más. ¡Qué adictivo!',
         ];
 
-        // Generar comentarios para cada capítulo
         for (const chapter of chapters) {
-            const numComments = Math.floor(Math.random() * 8) + 3; // 3-10 comentarios por capítulo
+            const numComments = Math.floor(Math.random() * 8) + 3;
             const chapterComments = [];
 
             for (let i = 0; i < numComments; i++) {
@@ -781,7 +757,6 @@ async function generateRandomChapterComments(chapters) {
                 });
             }
 
-            // Crear los comentarios en lotes
             if (chapterComments.length > 0) {
                 await prisma.chapterComment.createMany({
                     data: chapterComments,
@@ -789,47 +764,43 @@ async function generateRandomChapterComments(chapters) {
             }
         }
 
-        console.log(`✅ Comentarios aleatorios generados para ${chapters.length} capítulos`);
+        console.log(`Random comments generated for ${chapters.length} chapters`);
     } catch (error) {
-        console.error('Error generando comentarios aleatorios:', error);
+        console.error('Error generating random comments:', error);
     }
 }
 
-// Endpoint para generar comentarios en capítulos existentes
 exports.generateChapterComments = async (req, res) => {
     try {
         const { clubId } = req.params;
 
         if (!clubId) {
-            return res.status(400).json({ error: 'ID del club requerido' });
+            return res.status(400).json({ error: 'Club ID required' });
         }
 
-        // Obtener todos los capítulos del club
         const chapters = await prisma.clubChapter.findMany({
             where: { clubId },
             select: { id: true, chapter: true, title: true },
         });
 
         if (chapters.length === 0) {
-            return res.status(404).json({ error: 'No se encontraron capítulos en este club' });
+            return res.status(404).json({ error: 'No chapters found in this club' });
         }
 
-        // Generar comentarios para los capítulos existentes
         await generateRandomChapterComments(chapters);
 
         res.json({
-            message: `Comentarios generados para ${chapters.length} capítulos`,
+            message: `Comments generated for ${chapters.length} chapters`,
             chapters: chapters.length,
         });
     } catch (error) {
-        console.error('Error generando comentarios en capítulos existentes:', error);
-        res.status(500).json({ error: 'Error interno del servidor' });
+        console.error('Error generating comments for existing chapters:', error);
+        res.status(500).json({ error: 'Internal server error' });
     }
 };
 
 // ========== STORIES ENDPOINTS ==========
 
-// Crear una nueva historia
 exports.createStory = async (req, res) => {
     try {
         const meId = req.user?.userId;
@@ -840,7 +811,7 @@ exports.createStory = async (req, res) => {
             return res.status(400).json({ error: 'CONTENT_REQUIRED' });
         }
 
-        // Las historias expiran en 24 horas
+        // Expire in 24 hours
         const expiresAt = new Date();
         expiresAt.setHours(expiresAt.getHours() + 24);
 
@@ -878,13 +849,11 @@ exports.createStory = async (req, res) => {
     }
 };
 
-// Obtener historias de usuarios que sigue
 exports.getStories = async (req, res) => {
     try {
         const meId = req.user?.userId;
         if (!meId) return res.status(401).json({ error: 'UNAUTHENTICATED' });
 
-        // Obtener historias de usuarios que sigue (que no hayan expirado)
         const stories = await prisma.story.findMany({
             where: {
                 user: {
@@ -893,7 +862,7 @@ exports.getStories = async (req, res) => {
                     },
                 },
                 expiresAt: {
-                    gt: new Date(), // Solo historias que no han expirado
+                    gt: new Date(), 
                 },
             },
             include: { user: true },
@@ -901,7 +870,6 @@ exports.getStories = async (req, res) => {
             take: 50,
         });
 
-        // Agrupar historias por usuario
         const storiesByUser = {};
         stories.forEach((story) => {
             const userId = story.user.id;
@@ -936,40 +904,36 @@ exports.getStories = async (req, res) => {
     }
 };
 
-// Obtener historias de un usuario específico por ID
 exports.getUserStories = async (req, res) => {
     try {
         const { userId } = req.params;
 
         if (!userId || isNaN(parseInt(userId))) {
-            return res.status(400).json({ error: 'ID de usuario inválido' });
+            return res.status(400).json({ error: 'Invalid user ID' });
         }
 
         const userIdInt = parseInt(userId);
 
-        // Verificar que el usuario existe
         const user = await prisma.user.findUnique({
             where: { id: userIdInt },
             select: { id: true, name: true, username: true, avatar: true },
         });
 
         if (!user) {
-            return res.status(404).json({ error: 'Usuario no encontrado' });
+            return res.status(404).json({ error: 'User not found' });
         }
 
-        // Obtener historias del usuario (que no hayan expirado)
         const stories = await prisma.story.findMany({
             where: {
                 userId: userIdInt,
                 expiresAt: {
-                    gt: new Date(), // Solo historias que no han expirado
+                    gt: new Date(), 
                 },
             },
             orderBy: { createdAt: 'desc' },
             take: 50,
         });
 
-        // Formatear las historias
         const formattedStories = stories.map((story) => ({
             id: story.id,
             content: story.content,
@@ -999,7 +963,7 @@ exports.getUserStories = async (req, res) => {
     }
 };
 
-// Limpiar historias expiradas (endpoint para mantenimiento)
+// Clean expired stories
 exports.cleanExpiredStories = async (req, res) => {
     try {
         const deleted = await prisma.story.deleteMany({
@@ -1020,51 +984,46 @@ exports.cleanExpiredStories = async (req, res) => {
     }
 };
 
-// Seeder de historias de ejemplo
 exports.seedStories = async (req, res) => {
     try {
         const { initStories } = require('../../scripts/init-stories');
         await initStories();
-        res.json({ success: true, message: 'Historias de ejemplo creadas exitosamente' });
+        res.json({ success: true, message: 'Sample stories created successfully' });
     } catch (error) {
         console.error('[seedStories]', error);
-        res.status(500).json({ error: 'Error al crear historias de ejemplo' });
+        res.status(500).json({ error: 'Error creating sample stories' });
     }
 };
 
-// Eliminar un post
 exports.deletePost = async (req, res) => {
     try {
         const { postId } = req.params;
-        const { userId } = req.user; // Asumiendo que tienes middleware de autenticación
+        const { userId } = req.user;
 
         if (!postId) {
-            return res.status(400).json({ error: 'ID del post requerido' });
+            return res.status(400).json({ error: 'Post ID required' });
         }
 
-        // Verificar que el post existe y pertenece al usuario
         const post = await prisma.post.findUnique({
             where: { id: postId },
             select: { id: true, userId: true },
         });
 
         if (!post) {
-            return res.status(404).json({ error: 'Post no encontrado' });
+            return res.status(404).json({ error: 'Post not found' });
         }
 
-        // Verificar que el usuario es el propietario del post
         if (post.userId !== userId) {
-            return res.status(403).json({ error: 'No tienes permisos para eliminar este post' });
+            return res.status(403).json({ error: 'You do not have permission to delete this post' });
         }
 
-        // Eliminar el post (Prisma eliminará automáticamente los comentarios y likes relacionados)
         await prisma.post.delete({
             where: { id: postId },
         });
 
-        res.json({ message: 'Post eliminado exitosamente' });
+        res.json({ message: 'Post deleted successfully' });
     } catch (error) {
         console.error('Error deleting post:', error);
-        res.status(500).json({ error: 'Error interno del servidor' });
+        res.status(500).json({ error: 'Internal server error' });
     }
 };

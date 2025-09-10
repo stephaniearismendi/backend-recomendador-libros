@@ -235,6 +235,112 @@ const validationSchemas = {
             },
         },
     },
+
+    gamification: {
+        updateProgress: {
+            userId: {
+                required: true,
+                type: 'number',
+                message: 'User ID is required',
+            },
+            bookId: {
+                required: true,
+                type: 'string',
+                message: 'Book ID is required',
+            },
+            pagesRead: {
+                required: true,
+                type: 'number',
+                min: 0,
+                message: 'Pages read must be a non-negative number',
+            },
+            totalPages: {
+                required: true,
+                type: 'number',
+                min: 1,
+                message: 'Total pages must be a positive number',
+            },
+            isCompleted: {
+                required: true,
+                type: 'boolean',
+                message: 'Completion status is required',
+            },
+        },
+        setChallenge: {
+            userId: {
+                required: true,
+                type: 'number',
+                message: 'User ID is required',
+            },
+            year: {
+                required: true,
+                type: 'number',
+                min: 2020,
+                max: 2030,
+                message: 'Year must be between 2020 and 2030',
+            },
+            goal: {
+                required: true,
+                type: 'number',
+                min: 1,
+                max: 1000,
+                message: 'Goal must be between 1 and 1000 books',
+            },
+        },
+    },
+    readingSession: {
+        start: {
+            bookId: {
+                required: true,
+                type: 'string',
+                message: 'ID del libro es requerido',
+            },
+            currentPage: {
+                required: false,
+                type: 'number',
+                min: 1,
+                message: 'Página actual debe ser mayor a 0',
+            },
+            totalPages: {
+                required: false,
+                type: 'number',
+                min: 1,
+                message: 'Total de páginas debe ser mayor a 0',
+            },
+        },
+        update: {
+            sessionId: {
+                required: true,
+                type: 'number',
+                message: 'ID de sesión es requerido',
+            },
+            currentPage: {
+                required: false,
+                type: 'number',
+                min: 1,
+                message: 'Página actual debe ser mayor a 0',
+            },
+            progress: {
+                required: false,
+                type: 'number',
+                min: 0,
+                message: 'Progreso debe ser mayor o igual a 0',
+            },
+            duration: {
+                required: false,
+                type: 'number',
+                min: 0,
+                message: 'Duración debe ser mayor o igual a 0',
+            },
+        },
+        end: {
+            sessionId: {
+                required: true,
+                type: 'number',
+                message: 'ID de sesión es requerido',
+            },
+        },
+    },
 };
 
 module.exports = validationSchemas;

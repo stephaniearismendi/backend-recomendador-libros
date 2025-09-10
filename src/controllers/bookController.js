@@ -442,7 +442,6 @@ exports.getBookById = async (req, res) => {
                 _count: {
                     select: {
                         favorites: true,
-                        reviews: true,
                         posts: true,
                     },
                 },

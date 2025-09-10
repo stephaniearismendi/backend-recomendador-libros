@@ -48,7 +48,8 @@ const bookRoutes = require('./routes/bookRoutes');
 const favoriteRoutes = require('./routes/favoriteRoutes');
 const recommenderRoutes = require('./routes/recommenderRoutes');
 const socialRoutes = require('./routes/socialRoutes');
-const seedRoutes = require('./routes/seedRoutes');
+const gamificationRoutes = require('./routes/gamificationRoutes');
+const readingSessionRoutes = require('./routes/readingSessionRoutes');
 
 const errorHandler = require('./errors/errorHandler');
 
@@ -57,7 +58,8 @@ app.use('/books', bookRoutes);
 app.use('/favorites', favoriteRoutes);
 app.use('/recommendations', recommenderRoutes);
 app.use('/social', socialRoutes);
-app.use('/seed', seedRoutes);
+app.use('/gamification', gamificationRoutes);
+app.use('/reading-sessions', readingSessionRoutes);
 
 app.get('/health', (req, res) => {
     res.status(200).json({

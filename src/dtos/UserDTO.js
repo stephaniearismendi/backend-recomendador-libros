@@ -18,7 +18,6 @@ const userProfileDTO = (user) => {
         avatar: user.avatar,
         createdAt: user.createdAt,
         stats: {
-            reviews: user._count?.reviews || 0,
             favorites: user._count?.favorites || 0,
             following: user._count?.following || 0,
             followers: user._count?.followers || 0,

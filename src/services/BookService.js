@@ -6,6 +6,13 @@ class BookService {
         this.bookRepository = new BookRepository();
     }
 
+    /**
+     * Get book by ID
+     * @param {string} bookId - The book ID
+     * @returns {Promise<object>} The book
+     * @throws {AppError} If book ID is required
+     * @throws {AppError} If book not found
+     */
     async getBookById(bookId) {
         if (!bookId) {
             throw new AppError('ID del libro requerido', 400);
@@ -15,7 +22,6 @@ class BookService {
             include: {
                 _count: {
                     select: {
-                        reviews: true,
                         favorites: true,
                     },
                 },
@@ -44,7 +50,6 @@ class BookService {
             include: {
                 _count: {
                     select: {
-                        reviews: true,
                         favorites: true,
                     },
                 },
@@ -102,14 +107,13 @@ class BookService {
      */
     async getBooksByCategory(category, limit = 20, offset = 0) {
         if (!category) {
-            throw new AppError('Categoría requerida', 400);
+            throw new AppError('Category required', 400);
         }
 
         const books = await this.bookRepository.findByCategory(category, {
             include: {
                 _count: {
                     select: {
-                        reviews: true,
                         favorites: true,
                     },
                 },
@@ -150,7 +154,6 @@ class BookService {
             include: {
                 _count: {
                     select: {
-                        reviews: true,
                         favorites: true,
                     },
                 },
@@ -190,12 +193,12 @@ class BookService {
         const { id, title, author, imageUrl, description, rating, category } = bookData;
 
         if (!id || !title || !author) {
-            throw new AppError('ID, título y autor son requeridos', 400);
+            throw new AppError('ID, title and author are required', 400);
         }
 
         const existingBook = await this.bookRepository.findById(id);
         if (existingBook) {
-            throw new AppError('El libro ya existe', 409);
+            throw new AppError('Book already exists', 409);
         }
 
         const book = await this.bookRepository.create({

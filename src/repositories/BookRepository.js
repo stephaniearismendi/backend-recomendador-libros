@@ -81,23 +81,17 @@ class BookRepository extends BaseRepository {
     }
 
     /**
-     * Get books with their review counts and average ratings
+     * Get books with their statistics
      * @param {object} where - The where clause
      * @param {object} options - Additional options for the query
-     * @returns {Promise<Array>} Array of books with review statistics
+     * @returns {Promise<Array>} Array of books with statistics
      */
-    async getBooksWithReviewStats(where = {}, options = {}) {
+    async getBooksWithStats(where = {}, options = {}) {
         return this.findMany(where, {
             include: {
                 _count: {
                     select: {
-                        reviews: true,
                         favorites: true,
-                    },
-                },
-                reviews: {
-                    select: {
-                        rating: true,
                     },
                 },
             },
@@ -117,7 +111,6 @@ class BookRepository extends BaseRepository {
                 _count: {
                     select: {
                         favorites: true,
-                        reviews: true,
                     },
                 },
             },

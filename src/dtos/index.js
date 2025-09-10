@@ -5,8 +5,10 @@
 
 const UserDTO = require('./UserDTO');
 const BookDTO = require('./BookDTO');
+const FavoriteDTO = require('./FavoriteDTO');
 
 module.exports = {
     UserDTO,
     BookDTO,
+    FavoriteDTO,
 };

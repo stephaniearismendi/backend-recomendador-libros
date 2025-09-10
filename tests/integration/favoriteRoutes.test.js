@@ -64,6 +64,7 @@ describe('Core Favorites Tests', () => {
             .set('Authorization', `Bearer ${authToken}`)
             .expect(400);
 
-        expect(response.body).toHaveProperty('error');
+        expect(response.body).toHaveProperty('message');
+        expect(response.body).toHaveProperty('status', 'fail');
     });
 });

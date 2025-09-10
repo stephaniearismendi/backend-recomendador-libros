@@ -1,5 +1,4 @@
 /**
- * Book Data Transfer Objects (DTOs)
  * Defines the structure of book-related API responses
  */
 
@@ -35,7 +34,6 @@ const bookWithStatsDTO = (book) => {
         rating: book.rating,
         category: book.category,
         stats: {
-            reviews: book._count?.reviews || 0,
             favorites: book._count?.favorites || 0,
         },
     };
@@ -56,12 +54,8 @@ const bookDetailedDTO = (book) => {
         rating: book.rating,
         category: book.category,
         stats: {
-            reviews: book._count?.reviews || 0,
             favorites: book._count?.favorites || 0,
         },
-        averageRating: book.reviews?.length > 0 
-            ? (book.reviews.reduce((sum, review) => sum + review.rating, 0) / book.reviews.length).toFixed(1)
-            : null,
     };
 };
 

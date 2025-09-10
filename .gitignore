@@ -61,3 +61,6 @@ Thumbs.db
 
 # Test
 test-results/
+
+# Prisma migrations
+prisma/migrations/

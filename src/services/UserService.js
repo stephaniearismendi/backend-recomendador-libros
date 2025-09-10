@@ -9,6 +9,15 @@ class UserService {
         this.userRepository = new UserRepository();
     }
 
+    /**
+     * Register a new user
+     * @param {object} userData - The user registration data
+     * @param {string} userData.email - User email
+     * @param {string} userData.password - User password
+     * @param {string} [userData.name] - User name
+     * @returns {Promise<object>} The registration result
+     * @throws {AppError} If email or password are missing, or email already exists
+     */
     async register(userData) {
         const { email, password, name = '' } = userData;
 
